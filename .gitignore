@@ -1,0 +1,8 @@
+worker.js
+
+*.jpg
+
+.json
+.env
+refresh_token
+access_token
