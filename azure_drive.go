@@ -105,7 +105,7 @@ func (agt *Agent) Upload(ContentType string, body io.Reader) (*orderedmap.Ordere
 }
 
 // default follow
-func (agt *Agent) Get(id string) (io.ReadCloser, error) {
+func (agt *Agent) Get(id string) (io.ReadCloser, int64, string, error) {
 	endpoint := `https://graph.microsoft.com/v1.0/me/drive/items/` + id + `/content`
 	// endpoint = "https://moonchan.xyz/api-pack/echo"
 
@@ -118,10 +118,14 @@ func (agt *Agent) Get(id string) (io.ReadCloser, error) {
 		nil,
 	)
 	if err != nil {
-		return nil, err
+		return nil, 0, "", err
 	}
 
-	return resp.Body, nil
+	contentLength := resp.ContentLength
+
+	contentType := resp.Header.Get("Content-Type")
+
+	return resp.Body, contentLength, contentType, nil
 }
 
 // forced follow

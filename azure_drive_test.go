@@ -58,7 +58,8 @@ func TestUpload(t *testing.T) {
 		refresh_token: os.Getenv("refresh_token"),
 	}
 	// str := readFileToString("1.jpg")
-	r, err := agent.Upload("image/jpeg", "1.jpg")
+	f, _ := os.Open("1.jpg")
+	r, err := agent.Upload("image/jpeg", f)
 	fmt.Println(err)
 	fmt.Println(r)
 }
@@ -80,7 +81,7 @@ func TestGet(t *testing.T) {
 		refresh_token: os.Getenv("refresh_token"),
 	}
 	// str := readFileToString("1.jpg")
-	r, _ := agent.Get(id)
+	r, _, _, _ := agent.Get(id)
 	readerSaveToFile(r)
 }
 
