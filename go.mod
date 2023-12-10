@@ -3,6 +3,7 @@ module github.com/Hana-ame/azure-go
 go 1.20
 
 require (
+	github.com/Hana-ame/orderedmap v0.0.0-20231210055214-0cb8a5beb203 // indirect
 	github.com/Hana-ame/request v0.0.0-20231209105838-4f31c552ea6b // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/iancoleman/orderedmap v0.3.0 // indirect
