@@ -1,13 +1,13 @@
 package myiter
 
-import "github.com/iancoleman/orderedmap"
+import "github.com/Hana-ame/orderedmap"
 
 type SliceIter []any
 
-func (i SliceIter) Iter(iterator Iterator) {
+func (i SliceIter) Iter(f func(k, v any) bool) {
 	for k, v := range i {
-		isStopping := iterator.Iterate(k, v)
-		if isStopping {
+		shouldStop := f(k, v)
+		if shouldStop {
 			return
 		}
 	}
@@ -15,10 +15,10 @@ func (i SliceIter) Iter(iterator Iterator) {
 
 type MapIter map[any]any
 
-func (i MapIter) Iter(iterator Iterator) {
+func (i MapIter) Iter(f func(k, v any) bool) {
 	for k, v := range i {
-		isStopping := iterator.Iterate(k, v)
-		if isStopping {
+		shouldStop := f(k, v)
+		if shouldStop {
 			return
 		}
 	}
@@ -28,22 +28,30 @@ type OrderedMapIter struct {
 	*orderedmap.OrderedMap
 }
 
-func (i OrderedMapIter) Iter(iterator Iterator) {
+func (i *OrderedMapIter) Iter(f func(k, v any) bool) {
 	for _, k := range i.Keys() {
 		v, isExist := i.Get(k)
 		if isExist {
-			isStopping := iterator.Iterate(k, v)
-			if isStopping {
+			shouldStop := f(k, v)
+			if shouldStop {
 				return
 			}
 		}
 	}
 }
 
-type Iterator interface {
-	Iterate(k, v any) bool
+type iter interface {
+	Iter(f func(k, v any) bool)
 }
 
-type Iterable interface {
-	Iter()
+func NewIter(o any) iter {
+	switch v := o.(type) {
+	case []any:
+		return SliceIter(v)
+	case map[any]any:
+		return MapIter(v)
+	case *orderedmap.OrderedMap:
+		return &OrderedMapIter{v}
+	}
+	return nil
 }
