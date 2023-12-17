@@ -7,6 +7,7 @@ import (
 	"github.com/Hana-ame/orderedmap"
 )
 
+// this function receive json request.
 func ResponseToJson(r *http.Response) (*orderedmap.OrderedMap, error) {
 	o := orderedmap.New()
 	err := json.NewDecoder(r.Body).Decode(&o)

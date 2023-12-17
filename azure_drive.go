@@ -23,6 +23,8 @@ type Agent struct {
 	expires_time  int64
 	access_token  string
 	refresh_token string
+
+	SALT string
 }
 
 // 方法
@@ -32,6 +34,8 @@ type Agent struct {
 /// TODO：如何获取Token, 因为忘记了, 似乎要上blade去重新弄。两年一次。下次需要做好笔记。
 /// 记得原来的笔记是在旧电脑上
 
+// renew the token
+// save the newest `refresh_token` to `./refresh_token`
 func (agt *Agent) RenewToken() error {
 	endpoint := `https://login.microsoftonline.com/` + agt.tenent_id + `/oauth2/v2.0/token`
 	// endpoint = `https://moonchan.xyz/api-pack/echo`
@@ -74,9 +78,10 @@ func (agt *Agent) RenewToken() error {
 
 // image/png, image/jpeg
 //
-// return
-// map.id
+// return an Object
+// find what need in (Object).id
 func (agt *Agent) Upload(ContentType string, body io.Reader) (*orderedmap.OrderedMap, error) {
+	// save img to `<timestamp>-<randomString>`
 	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/img/` +
 		strconv.Itoa(int(time.Now().Unix())) + `-` +
 		uuid.New().String()[:8] + contentTypeToExtend(ContentType) + `:/content`
@@ -101,10 +106,10 @@ func (agt *Agent) Upload(ContentType string, body io.Reader) (*orderedmap.Ordere
 	}
 
 	return result, nil
-
 }
 
-// default follow
+// TODO: add cache for deleted pictures.
+// get picture body reader
 func (agt *Agent) Get(id string) (io.ReadCloser, int64, string, error) {
 	endpoint := `https://graph.microsoft.com/v1.0/me/drive/items/` + id + `/content`
 	// endpoint = "https://moonchan.xyz/api-pack/echo"
@@ -122,13 +127,12 @@ func (agt *Agent) Get(id string) (io.ReadCloser, int64, string, error) {
 	}
 
 	contentLength := resp.ContentLength
-
 	contentType := resp.Header.Get("Content-Type")
 
 	return resp.Body, contentLength, contentType, nil
 }
 
-// forced follow
+// delete picture
 func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 	endpoint := `https://graph.microsoft.com/v1.0/me/drive/items/` + id
 	// endpoint = "https://moonchan.xyz/api-pack/echo"
@@ -155,6 +159,8 @@ func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 	return result, nil
 }
 
+// TODO: gif
+// TODO: bmp
 func contentTypeToExtend(ct string) string {
 	switch ct {
 	case "image/jpeg":

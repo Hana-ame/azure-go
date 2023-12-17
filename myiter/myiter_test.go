@@ -7,12 +7,13 @@ import (
 	"github.com/Hana-ame/orderedmap"
 )
 
+// pass an iter function to iter then you can iter it.
 func TestX(t *testing.T) {
 	o := orderedmap.New()
 	o.Set("a", "11")
 	o.Set("b", "22")
 	o.Set("c", "33")
-	iter := &OrderedMapIter{o}
+	iter := NewIter(o)
 	i := "00"
 	f := func(k, v any) bool {
 		fmt.Println(k, v)
@@ -22,3 +23,7 @@ func TestX(t *testing.T) {
 	iter.Iter(f)
 	fmt.Println(i)
 }
+
+/*
+	it don't support types. that's really silly.
+*/
