@@ -105,6 +105,11 @@ func TestDelete(t *testing.T) {
 	fmt.Println(r)
 }
 
+func TestMine(t *testing.T) {
+	s := contentTypeToExtend("image/png")
+	log.Println(s)
+}
+
 func readFileToString(fn string) string {
 	file, err := os.ReadFile(fn)
 	if err != nil {

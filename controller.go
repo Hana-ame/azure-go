@@ -16,6 +16,7 @@ func Upload(c *gin.Context) {
 	resp, err := agent.Upload(ContentType, body)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
+		return
 	}
 
 	id := resp.GetOrDefault("id", "failed").(string)

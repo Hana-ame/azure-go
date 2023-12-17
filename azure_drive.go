@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"time"
@@ -161,12 +162,10 @@ func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 
 // TODO: gif
 // TODO: bmp
-func contentTypeToExtend(ct string) string {
-	switch ct {
-	case "image/jpeg":
-		return ".jpg"
-	case "image/png":
-		return ".png"
+func contentTypeToExtend(mimeType string) string {
+	extensions, err := mime.ExtensionsByType(mimeType)
+	if err != nil || len(extensions) == 0 {
+		return ""
 	}
-	return ""
+	return extensions[0]
 }

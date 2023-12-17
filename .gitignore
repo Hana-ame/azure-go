@@ -6,3 +6,6 @@ worker.js
 .env
 refresh_token
 access_token
+
+*.bin
+azure.bin

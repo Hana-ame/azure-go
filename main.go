@@ -27,7 +27,7 @@ func main() {
 
 		access_token: o.GetOrDefault("access_token", "").(string),
 		// expires_time
-		refresh_token: os.Getenv("refresh_token"),
+		refresh_token: o.GetOrDefault("refresh_token", "").(string),
 		SALT:          os.Getenv("refresh_token"),
 	}
 
