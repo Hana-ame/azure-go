@@ -1,9 +1,7 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"os"
 	"time"
 
@@ -55,10 +53,4 @@ func JsonFromFile(fn string) (*orderedmap.OrderedMap, error) {
 	o := orderedmap.New()
 	err = json.NewDecoder(jsonFile).Decode(&o)
 	return o, err
-}
-
-func hash(s string) string {
-	hash := sha256.Sum256([]byte(s + agent.SALT))
-	hashString := fmt.Sprintf("%x", hash[:2])
-	return hashString
 }

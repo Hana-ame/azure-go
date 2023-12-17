@@ -59,7 +59,7 @@ func TestUpload(t *testing.T) {
 	}
 	// str := readFileToString("1.jpg")
 	f, _ := os.Open("1.jpg")
-	r, err := agent.Upload("image/jpeg", f)
+	r, err := agent.Upload("image/jpeg", "", f)
 	fmt.Println(err)
 	fmt.Println(r)
 }
@@ -131,4 +131,9 @@ func readerSaveToFile(reader io.Reader) {
 	f, _ := os.Create("out.jpg") // 可以create同一个文件名的
 	w := bufio.NewWriter(f)
 	io.Copy(w, reader)
+}
+
+func TestMime(t *testing.T) {
+	s := contentTypeToExtend("image/jpeg")
+	fmt.Println(s)
 }

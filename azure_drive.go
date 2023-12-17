@@ -81,7 +81,7 @@ func (agt *Agent) RenewToken() error {
 //
 // return an Object
 // find what need in (Object).id
-func (agt *Agent) Upload(ContentType string, body io.Reader) (*orderedmap.OrderedMap, error) {
+func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*orderedmap.OrderedMap, error) {
 	// save img to `<timestamp>-<randomString>`
 	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/img/` +
 		strconv.Itoa(int(time.Now().Unix())) + `-` +
@@ -92,8 +92,9 @@ func (agt *Agent) Upload(ContentType string, body io.Reader) (*orderedmap.Ordere
 		http.MethodPut,
 		endpoint,
 		map[string]string{
-			"Authorization": "Bearer " + agt.access_token,
-			"Content-Type":  ContentType,
+			"Authorization":  "Bearer " + agt.access_token,
+			"Content-Type":   ContentType,
+			"Content-Length": ContentLength,
 		},
 		body,
 	)
@@ -160,12 +161,30 @@ func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 	return result, nil
 }
 
-// TODO: gif
-// TODO: bmp
+var KEYS = []string{
+	".jpg",
+	".png",
+	".gif",
+	".webp",
+	".bmp",
+}
+
 func contentTypeToExtend(mimeType string) string {
 	extensions, err := mime.ExtensionsByType(mimeType)
 	if err != nil || len(extensions) == 0 {
 		return ""
 	}
-	return extensions[0]
+	ext := pickSurfix(extensions, KEYS)
+	return ext
+}
+
+func pickSurfix(arr []string, keys []string) string {
+	for _, key := range keys {
+		for _, typ := range arr {
+			if typ == key {
+				return typ
+			}
+		}
+	}
+	return arr[0]
 }
