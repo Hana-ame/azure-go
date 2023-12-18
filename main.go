@@ -2,7 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/Hana-ame/azure-go/myiter"
@@ -16,8 +19,10 @@ var agent *Agent
 
 func main() {
 	godotenv.Load("refresh_token")
-	if o, err := JsonFromFile(".json"); err != nil {
+	if o, err := readJsonFromFile(".json"); err != nil {
 		overloadToEnv(o)
+	} else {
+		log.Println(err)
 	}
 	agent = &Agent{
 		tenent_id:     os.Getenv("tenent_id"),
@@ -29,8 +34,10 @@ func main() {
 		access_token: os.Getenv("access_token"),
 		// expires_time
 		refresh_token: os.Getenv("refresh_token"),
-		SALT:          os.Getenv("refresh_token"),
+		SALT:          os.Getenv("SALT"),
 	}
+
+	printStructFields(agent)
 
 	go func() {
 		for {
@@ -48,7 +55,7 @@ func main() {
 }
 
 // this function receive json request.
-func JsonFromFile(fn string) (*orderedmap.OrderedMap, error) {
+func readJsonFromFile(fn string) (*orderedmap.OrderedMap, error) {
 	jsonFile, err := os.Open(fn)
 	if err != nil {
 		return nil, err
@@ -70,4 +77,24 @@ func overloadToEnv(o *orderedmap.OrderedMap) {
 
 		return false
 	})
+}
+
+// by GPT
+func printStructFields(s interface{}) {
+	val := reflect.ValueOf(s)
+
+	// Make sure the input is a struct
+	if val.Kind() != reflect.Struct {
+		fmt.Println("Input is not a struct")
+		return
+	}
+
+	// Iterate through the fields
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		fieldName := val.Type().Field(i).Name
+		fieldValue := field.Interface()
+
+		log.Printf("%s: %v\n", fieldName, fieldValue)
+	}
 }
