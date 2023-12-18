@@ -19,7 +19,7 @@ var agent *Agent
 
 func main() {
 	godotenv.Load("refresh_token")
-	if o, err := readJsonFromFile(".json"); err != nil {
+	if o, err := readJsonFromFile(".json"); err == nil {
 		overloadToEnv(o)
 	} else {
 		log.Println(err)
@@ -37,6 +37,7 @@ func main() {
 		SALT:          os.Getenv("SALT"),
 	}
 
+	log.Println(agent)
 	printStructFields(agent)
 
 	go func() {
@@ -80,6 +81,7 @@ func overloadToEnv(o *orderedmap.OrderedMap) {
 }
 
 // by GPT
+// can't pass pointer..
 func printStructFields(s interface{}) {
 	val := reflect.ValueOf(s)
 
