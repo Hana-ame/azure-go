@@ -167,6 +167,10 @@ var KEYS = []string{
 	".gif",
 	".webp",
 	".bmp",
+	".mp4",
+	".mkv",
+	".mp3",
+	".webm",
 }
 
 func contentTypeToExtend(mimeType string) string {
