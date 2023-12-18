@@ -19,11 +19,8 @@ var agent *Agent
 
 func main() {
 	godotenv.Load("refresh_token")
-	if o, err := readJsonFromFile(".json"); err == nil {
-		overloadToEnv(o)
-	} else {
-		log.Println(err)
-	}
+	overloadEnvByJsonFile(".json")
+
 	agent = &Agent{
 		tenent_id:     os.Getenv("tenent_id"),
 		client_id:     os.Getenv("client_id"),
@@ -78,6 +75,16 @@ func overloadToEnv(o *orderedmap.OrderedMap) {
 
 		return false
 	})
+}
+
+func overloadEnvByJsonFile(fn string) error {
+	if o, err := readJsonFromFile(fn); err == nil {
+		overloadToEnv(o)
+	} else {
+		log.Println(err)
+		return err
+	}
+	return nil
 }
 
 // by GPT

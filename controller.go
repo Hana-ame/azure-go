@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// note: it works when local
 func Upload(c *gin.Context) {
 	ContentType := c.GetHeader("Content-Type")
 	ContentLength := c.GetHeader("Content-Length")
