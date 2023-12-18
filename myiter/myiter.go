@@ -41,7 +41,7 @@ func (i *OrderedMapIter) Iter(f func(k, v any) bool) {
 }
 
 type iter interface {
-	Iter(f func(k, v any) bool)
+	Iter(f func(k, v any) (shouldStop bool))
 }
 
 func NewIter(o any) iter {

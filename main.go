@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Hana-ame/azure-go/myiter"
 	"github.com/Hana-ame/orderedmap"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -15,7 +16,9 @@ var agent *Agent
 
 func main() {
 	godotenv.Load("refresh_token")
-	o, _ := JsonFromFile(".json")
+	if o, err := JsonFromFile(".json"); err != nil {
+		overloadToEnv(o)
+	}
 	agent = &Agent{
 		tenent_id:     os.Getenv("tenent_id"),
 		client_id:     os.Getenv("client_id"),
@@ -23,9 +26,9 @@ func main() {
 		client_secret: os.Getenv("client_secret"),
 		scope:         os.Getenv("scope"),
 
-		access_token: o.GetOrDefault("access_token", "").(string),
+		access_token: os.Getenv("access_token"),
 		// expires_time
-		refresh_token: o.GetOrDefault("refresh_token", "").(string),
+		refresh_token: os.Getenv("refresh_token"),
 		SALT:          os.Getenv("refresh_token"),
 	}
 
@@ -53,4 +56,18 @@ func JsonFromFile(fn string) (*orderedmap.OrderedMap, error) {
 	o := orderedmap.New()
 	err = json.NewDecoder(jsonFile).Decode(&o)
 	return o, err
+}
+
+func overloadToEnv(o *orderedmap.OrderedMap) {
+	iter := myiter.NewIter(o)
+	iter.Iter(func(k, v any) bool {
+		key, keyIsString := k.(string)
+		value, valueIsString := v.(string)
+		if keyIsString && valueIsString {
+
+			_ = os.Setenv(key, value)
+		}
+
+		return false
+	})
 }
