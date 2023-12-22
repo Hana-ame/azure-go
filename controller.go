@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
+	"github.com/Hana-ame/azure-go/syncmapwithcnt"
+	"github.com/Hana-ame/orderedmap"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,12 +25,13 @@ func Upload(c *gin.Context) {
 		return
 	}
 
-	// id := resp.GetOrDefault("id", "failed").(string)
-	// o := orderedmap.New()
-	// o.Set("id", id)
-	// o.Set("key", hash(id))
+	id := resp.GetOrDefault("id", "failed").(string)
+	o := orderedmap.New()
+	o.Set("id", id)
+	o.Set("key", hash(id))
 
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, o)
+	// c.JSON(http.StatusOK, resp)
 }
 
 func Get(c *gin.Context) {
@@ -41,14 +45,21 @@ func Get(c *gin.Context) {
 	c.DataFromReader(http.StatusOK, contentLength, contentType, file, map[string]string{"Content-Disposition": "inline"})
 }
 
+var Deleted = syncmapwithcnt.New()
+
 func Delete(c *gin.Context) {
 	id := c.Param("id")
-	// key := c.Param("key")
+	key := c.Param("key")
 
-	// if hash(id) != key {
-	// 	c.JSON(http.StatusUnauthorized, "key is wrong")
-	// 	return
-	// }
+	if hash(id) != key {
+		c.JSON(http.StatusUnauthorized, "key is wrong")
+		return
+	}
+
+	if _, ok := Deleted.Load(id); ok {
+		c.JSON(http.StatusOK, "not found")
+		return
+	}
 
 	_, err := agent.Delete(id)
 	if err != nil {
@@ -60,11 +71,13 @@ func Delete(c *gin.Context) {
 		return
 	}
 
+	Deleted.Store(id, time.Now().Unix())
 	c.JSON(http.StatusOK, "not found")
+	return
 }
 
 func hash(s string) string {
 	hash := sha256.Sum256([]byte(s + agent.SALT))
-	hashString := fmt.Sprintf("%x", hash[:2])
+	hashString := fmt.Sprintf("%x", hash[:8])
 	return hashString
 }

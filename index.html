@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+    <head>
+      <title>another piece of shit</title>
+      <style type="text/css">
+        .item {
+          clear: both;
+        }
+        img {
+          margin: 24px;
+          width: 150px;
+          max-height: 300px;
+          float: left;
+        }
+        input {
+          padding: 8px;
+          width: 600px;
+        }
+        .inner {
+          margin: 8px;
+        }
+        .wrapper {
+          margin-left: 200px;
+        }
+        </style>
+    </head>
+    <body id="body">
+    
+      <div id="wrap">
+        <label for="input">Choose a picture (you can also use Ctrl+v):</label>
+        <input type="file"
+              id="input" name="img"
+              accept="image/*"
+              multiple />
+      </div>
+    
+      <div id="div">
+    
+      </div>
+      <script>
+        base = document.location.href;
+        function handleFile(file){      
+          if (file){ // do nothing when paste texts.
+            console.log(file);
+            console.log(file.type); // 'image/png', while paste a picture.
+            if (file.type.startsWith("image") || file.type.startwith("audio")) {
+    
+              const element = document.getElementById('div');
+              let div = document.createElement('div');
+              div.className = 'item';
+              let img = document.createElement('img');
+              
+              div.appendChild(img);
+              let divWrapper = document.createElement('div');
+              divWrapper.className = 'wrapper';
+              let urlTag = document.createElement('div');
+              urlTag.className = 'inner';
+              urlTag.innerText = '图片链接';
+              divWrapper.appendChild(urlTag);
+              let urlLink = document.createElement('input');
+              urlLink.onmouseover = function(){urlLink.select();};
+              
+              divWrapper.appendChild(urlLink);
+              let delTag = document.createElement('div');
+              delTag.className = 'inner';
+              delTag.innerText = '删除链接';
+              divWrapper.appendChild(delTag);
+              let delLink = document.createElement('input');
+              delLink.onmouseover = function(){delLink.select();};
+              
+              divWrapper.appendChild(delLink);
+              div.appendChild(divWrapper);
+              element.insertBefore(div, element.firstChild);
+    
+              fetch(`${base}api/upload`, {
+                method: 'POST',
+                body: file,
+              }).then(r=>r.json())
+              .then( resp => {
+                img.src = `${base}api/${resp.id}/${file.name}`;
+                urlLink.value = `${base}api/${resp.id}/${file.name}`;
+                delLink.value = `${base}api/delete/${resp.id}/${resp.hash}`;
+              } )        
+            }
+          }
+        }
+    
+        const inputElement = document.getElementById("input");
+        inputElement.addEventListener("change", handleFiles, false);
+        function handleFiles() {
+          const files = this.files; /* now you can work with the file list */
+          for (let i=0; i<files.length; i++){
+            handleFile(files.item(i));
+          }
+        }
+        document.addEventListener('paste', (event) => {
+          console.log(event);
+          const files = event.clipboardData.files;
+          for (let i=0; i<files.length; i++){
+            handleFile(files.item(i));
+          }
+        });
+      </script>
+    </body>
+</html>

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Hana-ame/azure-go/myiter"
+	"github.com/Hana-ame/azure-go/syncmapwithcnt"
 	"github.com/Hana-ame/orderedmap"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -35,12 +36,16 @@ func main() {
 	}
 
 	log.Println(agent)
-	printStructFields(agent)
+	// printStructFields(*agent) // bug
 
+	// Deamon
 	go func() {
 		for {
-			time.Sleep(20 * time.Minute)
 			agent.RenewToken()
+			if Deleted.Len() > 64 {
+				Deleted = &syncmapwithcnt.SyncMapWithCount{}
+			}
+			time.Sleep(20 * time.Minute)
 		}
 	}()
 
@@ -48,6 +53,7 @@ func main() {
 	r.PUT("/api/upload", Upload)
 	r.GET("/api/:id/*fn", Get)
 	r.DELETE("/api/:id/:key", Delete)
+	r.GET("/api/delete/:id/:key", Delete)
 
 	r.Run("127.23.12.17:8080")
 }
@@ -69,10 +75,8 @@ func overloadToEnv(o *orderedmap.OrderedMap) {
 		key, keyIsString := k.(string)
 		value, valueIsString := v.(string)
 		if keyIsString && valueIsString {
-
 			_ = os.Setenv(key, value)
 		}
-
 		return false
 	})
 }
