@@ -73,7 +73,6 @@ func Delete(c *gin.Context) {
 
 	Deleted.Store(id, time.Now().Unix())
 	c.JSON(http.StatusOK, "not found")
-	return
 }
 
 func hash(s string) string {

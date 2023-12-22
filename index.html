@@ -72,7 +72,7 @@
               element.insertBefore(div, element.firstChild);
     
               fetch(`${base}api/upload`, {
-                method: 'POST',
+                method: 'PUT',
                 body: file,
               }).then(r=>r.json())
               .then( resp => {
