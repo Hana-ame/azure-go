@@ -34,18 +34,25 @@ func Upload(c *gin.Context) {
 	// c.JSON(http.StatusOK, resp)
 }
 
+var Deleted = syncmapwithcnt.New()
+
 func Get(c *gin.Context) {
 	id := c.Param("id")
 
+	if _, ok := Deleted.Load(id); ok {
+		c.JSON(http.StatusGone, "gone")
+		return
+	}
+
 	file, contentLength, contentType, err := agent.Get(id)
 	if err != nil {
+		Deleted.Store(id, time.Now().Unix())
 		c.JSON(http.StatusInternalServerError, err)
+		return
 	}
 
 	c.DataFromReader(http.StatusOK, contentLength, contentType, file, map[string]string{"Content-Disposition": "inline"})
 }
-
-var Deleted = syncmapwithcnt.New()
 
 func Delete(c *gin.Context) {
 	id := c.Param("id")
@@ -61,6 +68,7 @@ func Delete(c *gin.Context) {
 		return
 	}
 
+	// TODO: what if deleted an unexist one?
 	_, err := agent.Delete(id)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -72,7 +80,7 @@ func Delete(c *gin.Context) {
 	}
 
 	Deleted.Store(id, time.Now().Unix())
-	c.JSON(http.StatusOK, "not found")
+	c.JSON(http.StatusGone, "gone")
 }
 
 func hash(s string) string {
