@@ -56,6 +56,19 @@ func Get(c *gin.Context) {
 
 func Delete(c *gin.Context) {
 	id := c.Param("id")
+
+	_, err := agent.Delete(id)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			c.JSON(http.StatusOK, "ok")
+		} else {
+			c.JSON(http.StatusInternalServerError, err)
+		}
+	}
+}
+
+func DeleteWithKey(c *gin.Context) {
+	id := c.Param("id")
 	key := c.Param("key")
 
 	if hash(id) != key {
