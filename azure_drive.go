@@ -167,9 +167,10 @@ var KEYS = []string{
 	".gif",
 	".webp",
 	".bmp",
+	// mp3 should be first.
+	".mp3",
 	".mp4",
 	".mkv",
-	".mp3",
 	".webm",
 }
 
