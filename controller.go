@@ -40,14 +40,22 @@ func Get(c *gin.Context) {
 	id := c.Param("id")
 
 	if _, ok := Deleted.Load(id); ok {
-		c.JSON(http.StatusGone, "gone")
+		// c.JSON(http.StatusGone, "gone")
+		c.Redirect(http.StatusFound, "https://moonchan.xyz/favicon.ico") // 替换成你想要重定向的 URL
 		return
 	}
 
 	file, contentLength, contentType, err := agent.Get(id)
 	if err != nil {
 		Deleted.Store(id, time.Now().Unix())
-		c.JSON(http.StatusInternalServerError, err)
+		// c.JSON(http.StatusInternalServerError, err)
+		c.Redirect(http.StatusFound, "https://moonchan.xyz/favicon.ico") // 替换成你想要重定向的 URL
+		return
+	}
+
+	if contentType == "application/json; odata.metadata=minimal; odata.streaming=true; IEEE754Compatible=false; charset=utf-8" {
+		Deleted.Store(id, time.Now().Unix())
+		c.Redirect(http.StatusFound, "https://moonchan.xyz/favicon.ico") // 替换成你想要重定向的 URL
 		return
 	}
 
