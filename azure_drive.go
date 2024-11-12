@@ -4,6 +4,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -39,7 +40,6 @@ type Agent struct {
 // save the newest `refresh_token` to `./refresh_token`
 func (agt *Agent) RenewToken() error {
 	endpoint := `https://login.microsoftonline.com/` + agt.tenent_id + `/oauth2/v2.0/token`
-	// endpoint = `https://moonchan.xyz/api-pack/echo`
 
 	body, _ := myfetch.URLEncodedFormReader(map[string]string{
 		"client_id":     agt.client_id,
@@ -50,7 +50,9 @@ func (agt *Agent) RenewToken() error {
 	resp, err := myfetch.Fetch(
 		http.MethodPost,
 		endpoint,
-		map[string]string{"Content-Type": "application/x-www-form-urlencoded", "Origin": "https://moonchan.xyz"},
+		map[string]string{
+			"Content-Type": "application/x-www-form-urlencoded",
+			"Origin":       os.Getenv("origin")},
 		body,
 	)
 	if err != nil {
@@ -86,13 +88,12 @@ func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*or
 	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/img/` +
 		strconv.Itoa(int(time.Now().Unix())) + `-` +
 		uuid.New().String()[:8] + contentTypeToExtend(ContentType) + `:/content`
-	// endpoint = "https://moonchan.xyz/api-pack/echo"
 
 	resp, err := myfetch.Fetch(
 		http.MethodPut,
 		endpoint,
 		map[string]string{
-			"Origin":         "https://moonchan.xyz",
+			"Origin":         os.Getenv("origin"),
 			"Authorization":  "Bearer " + agt.access_token,
 			"Content-Type":   ContentType,
 			"Content-Length": ContentLength,
@@ -115,13 +116,12 @@ func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*or
 // get picture body reader
 func (agt *Agent) Get(id string) (file io.ReadCloser, contentLength int64, contentType string, err error) {
 	endpoint := `https://graph.microsoft.com/v1.0/me/drive/items/` + id + `/content`
-	// endpoint = "https://moonchan.xyz/api-pack/echo"
 
 	resp, err := myfetch.Fetch(
 		http.MethodGet,
 		endpoint,
 		map[string]string{
-			"Origin":        "https://moonchan.xyz",
+			"Origin":        os.Getenv("origin"),
 			"Authorization": "Bearer " + agt.access_token,
 		},
 		nil,
@@ -140,13 +140,12 @@ func (agt *Agent) Get(id string) (file io.ReadCloser, contentLength int64, conte
 // delete picture
 func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 	endpoint := `https://graph.microsoft.com/v1.0/me/drive/items/` + id
-	// endpoint = "https://moonchan.xyz/api-pack/echo"
 
 	resp, err := myfetch.Fetch(
 		http.MethodDelete,
 		endpoint,
 		map[string]string{
-			"Origin":        "https://moonchan.xyz",
+			"Origin":        os.Getenv("origin"),
 			"Authorization": "Bearer " + agt.access_token,
 		},
 		nil,

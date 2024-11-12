@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Hana-ame/azure-go/syncmapwithcnt"
@@ -41,7 +42,7 @@ func Get(c *gin.Context) {
 
 	if _, ok := Deleted.Load(id); ok {
 		// c.JSON(http.StatusGone, "gone")
-		c.Redirect(http.StatusFound, "https://moonchan.xyz/favicon.ico") // 替换成你想要重定向的 URL
+		c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
 		return
 	}
 
@@ -49,13 +50,13 @@ func Get(c *gin.Context) {
 	if err != nil {
 		Deleted.Store(id, time.Now().Unix())
 		// c.JSON(http.StatusInternalServerError, err)
-		c.Redirect(http.StatusFound, "https://moonchan.xyz/favicon.ico") // 替换成你想要重定向的 URL
+		c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
 		return
 	}
 
 	if contentType == "application/json; odata.metadata=minimal; odata.streaming=true; IEEE754Compatible=false; charset=utf-8" {
 		Deleted.Store(id, time.Now().Unix())
-		c.Redirect(http.StatusFound, "https://moonchan.xyz/favicon.ico") // 替换成你想要重定向的 URL
+		c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
 		return
 	}
 

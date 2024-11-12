@@ -29,7 +29,6 @@ func TestXxx(t *testing.T) {
 	godotenv.Load("refresh_token")
 
 	endpoint := `https://login.microsoftonline.com/` + os.Getenv("tenent_id") + `/oauth2/v2.0/token`
-	// endpoint = `https://moonchan.xyz/api-pack/echo`
 
 	body, _ := myfetch.URLEncodedFormReader(map[string]string{
 		"client_id":     os.Getenv("client_id"),
@@ -42,7 +41,7 @@ func TestXxx(t *testing.T) {
 		endpoint,
 		map[string]string{
 			"Content-Type": "application/x-www-form-urlencoded",
-			"Origin":       "https://moonchan.xyz",
+			"Origin":       os.Getenv("origin"),
 		},
 		body,
 	)
