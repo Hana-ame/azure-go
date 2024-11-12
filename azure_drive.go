@@ -45,12 +45,12 @@ func (agt *Agent) RenewToken() error {
 		"client_id":     agt.client_id,
 		"refresh_token": agt.refresh_token,
 		"grant_type":    "refresh_token",
-		"client_secret": agt.client_secret,
+		// "client_secret": agt.client_secret,
 	})
 	resp, err := myfetch.Fetch(
 		http.MethodPost,
 		endpoint,
-		map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+		map[string]string{"Content-Type": "application/x-www-form-urlencoded", "Origin": "https://moonchan.xyz"},
 		body,
 	)
 	if err != nil {
@@ -92,6 +92,7 @@ func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*or
 		http.MethodPut,
 		endpoint,
 		map[string]string{
+			"Origin":         "https://moonchan.xyz",
 			"Authorization":  "Bearer " + agt.access_token,
 			"Content-Type":   ContentType,
 			"Content-Length": ContentLength,
@@ -112,7 +113,7 @@ func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*or
 
 // TODO: add cache for deleted pictures.
 // get picture body reader
-func (agt *Agent) Get(id string) (io.ReadCloser, int64, string, error) {
+func (agt *Agent) Get(id string) (file io.ReadCloser, contentLength int64, contentType string, err error) {
 	endpoint := `https://graph.microsoft.com/v1.0/me/drive/items/` + id + `/content`
 	// endpoint = "https://moonchan.xyz/api-pack/echo"
 
@@ -120,18 +121,20 @@ func (agt *Agent) Get(id string) (io.ReadCloser, int64, string, error) {
 		http.MethodGet,
 		endpoint,
 		map[string]string{
+			"Origin":        "https://moonchan.xyz",
 			"Authorization": "Bearer " + agt.access_token,
 		},
 		nil,
 	)
 	if err != nil {
-		return nil, 0, "", err
+		return
 	}
 
-	contentLength := resp.ContentLength
-	contentType := resp.Header.Get("Content-Type")
+	contentLength = resp.ContentLength
+	contentType = resp.Header.Get("Content-Type")
 
-	return resp.Body, contentLength, contentType, nil
+	file = resp.Body
+	return
 }
 
 // delete picture
@@ -143,6 +146,7 @@ func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 		http.MethodDelete,
 		endpoint,
 		map[string]string{
+			"Origin":        "https://moonchan.xyz",
 			"Authorization": "Bearer " + agt.access_token,
 		},
 		nil,

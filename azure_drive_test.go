@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/Hana-ame/azure-go/myfetch"
 	"github.com/joho/godotenv"
 	_ "github.com/joho/godotenv/autoload"
 )
@@ -21,6 +23,39 @@ func TestTest(t *testing.T) {
 	godotenv.Write(env, "./.env")
 	fmt.Println(accessToken())
 
+}
+
+func TestXxx(t *testing.T) {
+	godotenv.Load("refresh_token")
+
+	endpoint := `https://login.microsoftonline.com/` + os.Getenv("tenent_id") + `/oauth2/v2.0/token`
+	// endpoint = `https://moonchan.xyz/api-pack/echo`
+
+	body, _ := myfetch.URLEncodedFormReader(map[string]string{
+		"client_id":     os.Getenv("client_id"),
+		"refresh_token": os.Getenv("refresh_token"),
+		"grant_type":    "refresh_token",
+		// "client_secret": agt.client_secret,
+	})
+	resp, err := myfetch.Fetch(
+		http.MethodPost,
+		endpoint,
+		map[string]string{
+			"Content-Type": "application/x-www-form-urlencoded",
+			"Origin":       "https://moonchan.xyz",
+		},
+		body,
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	result, err := myfetch.ResponseToJson(resp)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(result)
 }
 
 func TestRenew(t *testing.T) {
@@ -39,7 +74,10 @@ func TestRenew(t *testing.T) {
 
 	fmt.Println(agent) // pass
 
-	agent.RenewToken()
+	err := agent.RenewToken()
+	if err != nil {
+		log.Println(err)
+	}
 	fmt.Println(agent) // pass
 
 }
