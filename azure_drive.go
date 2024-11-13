@@ -69,9 +69,9 @@ func (agt *Agent) RenewToken() error {
 
 	// log.Println(result) // ok
 	// renew agent
-	agt.access_token = result.GetOrDefault(`access_token`, ``).(string)
-	agt.refresh_token = result.GetOrDefault(`refresh_token`, ``).(string)
-	agt.expires_time = time.Now().Unix() + int64(result.GetOrDefault(`expires_in`, 0.0).(float64))
+	agt.access_token = result.GetOrDefault(`access_token`, agt.access_token).(string)
+	agt.refresh_token = result.GetOrDefault(`refresh_token`, agt.refresh_token).(string)
+	agt.expires_time = time.Now().Unix() + int64(result.GetOrDefault(`expires_in`, float64(agt.expires_time)).(float64))
 
 	// save to file
 	godotenv.Write(map[string]string{"refresh_token": agt.refresh_token}, "refresh_token")

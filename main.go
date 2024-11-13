@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/Hana-ame/azure-go/Tools/debug"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/myiter"
 	"github.com/Hana-ame/azure-go/syncmapwithcnt"
@@ -41,7 +42,9 @@ func main() {
 	// Deamon
 	go func() {
 		for {
-			agent.RenewToken()
+			for err := agent.RenewToken(); err != nil; err = agent.RenewToken() {
+				debug.W("renew", err)
+			}
 			if Deleted.Len() > 64 {
 				Deleted = &syncmapwithcnt.SyncMapWithCount{}
 			}
