@@ -105,6 +105,18 @@ func DeleteWithKey(c *gin.Context) {
 	c.JSON(http.StatusGone, "gone")
 }
 
+func CreateUploadSession(c *gin.Context) {
+	ContentType := c.GetHeader("Content-Type")
+
+	resp, err := agent.CreateUploadSession(ContentType, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 func hash(s string) string {
 	hash := sha256.Sum256([]byte(s + agent.SALT))
 	hashString := fmt.Sprintf("%x", hash[:8])

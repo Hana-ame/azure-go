@@ -164,6 +164,34 @@ func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 	return result, nil
 }
 
+func (agt *Agent) CreateUploadSession(ContentType string, body io.Reader) (*orderedmap.OrderedMap, error) {
+	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/large/` +
+		strconv.Itoa(int(time.Now().Unix())) + `-` +
+		uuid.New().String()[:8] + contentTypeToExtend(ContentType) + `:/createUploadSession`
+
+	resp, err := myfetch.Fetch(
+		http.MethodPost,
+		endpoint,
+		map[string]string{
+			"Origin":        os.Getenv("origin"),
+			"Authorization": "Bearer " + agt.access_token,
+		},
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := myfetch.ResponseToJson(resp)
+	if err != nil {
+		return result, err
+	}
+	// fmt.Println(resp)
+	// fmt.Println(resp.Ctx().Response)
+
+	return result, nil
+}
+
 var KEYS = []string{
 	".jpg",
 	".png",

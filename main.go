@@ -54,6 +54,7 @@ func main() {
 
 	r := gin.Default()
 	r.PUT("/api/upload", Upload)
+	r.POST("/api/upload", CreateUploadSession)
 	r.GET("/api/:id/*fn", Get)
 	r.DELETE("/api/:id/:key", Delete) // 不能这么做的样子
 	r.GET("/api/delete/:id/:key", DeleteWithKey)

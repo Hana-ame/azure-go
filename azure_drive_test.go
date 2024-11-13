@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	tools "github.com/Hana-ame/azure-go/Tools"
 	"github.com/Hana-ame/azure-go/Tools/debug"
 	"github.com/Hana-ame/azure-go/myfetch"
 	"github.com/joho/godotenv"
@@ -59,6 +60,9 @@ func TestXxx(t *testing.T) {
 
 	debug.OrderedMap(result)
 
+	o, _ := tools.ReadFileToJSON(".json")
+	o.Set("access_token", result.GetOrDefault("access_token", "agent.access_token").(string))
+	tools.WriteJSONToFile(".json", o)
 }
 
 func TestRenew(t *testing.T) {
@@ -177,4 +181,31 @@ func readerSaveToFile(reader io.Reader) {
 func TestMime(t *testing.T) {
 	s := contentTypeToExtend("image/jpeg")
 	fmt.Println(s)
+}
+
+func TestCreateSession(t *testing.T) {
+	// godotenv.Load("access_token")
+	agent := Agent{
+		tenent_id:     os.Getenv("tenent_id"),
+		client_id:     os.Getenv("client_id"),
+		redirect_url:  os.Getenv("redirect_url"),
+		client_secret: os.Getenv("client_secret"),
+		scope:         os.Getenv("scope"),
+
+		access_token: accessToken(),
+		// expires_time
+		refresh_token: os.Getenv("refresh_token"),
+	}
+
+	// err := agent.RenewToken()
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+
+	debug.I("agent", agent)
+	// str := readFileToString("1.jpg")
+	f, _ := os.Open("1.jpg")
+	r, err := agent.CreateUploadSession("image/jpeg", f)
+	fmt.Println(err)
+	debug.OrderedMap(r)
 }
