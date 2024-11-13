@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Hana-ame/azure-go/Tools/debug"
 	"github.com/Hana-ame/azure-go/myfetch"
 	"github.com/joho/godotenv"
 	_ "github.com/joho/godotenv/autoload"
@@ -55,16 +56,19 @@ func TestXxx(t *testing.T) {
 	}
 
 	fmt.Println(result)
+
+	debug.OrderedMap(result)
+
 }
 
 func TestRenew(t *testing.T) {
 	godotenv.Load("refresh_token")
 	agent := Agent{
-		tenent_id:     os.Getenv("tenent_id"),
-		client_id:     os.Getenv("client_id"),
-		redirect_url:  os.Getenv("redirect_url"),
-		client_secret: os.Getenv("client_secret"),
-		scope:         os.Getenv("scope"),
+		tenent_id:    os.Getenv("tenent_id"),
+		client_id:    os.Getenv("client_id"),
+		redirect_url: os.Getenv("redirect_url"),
+		// client_secret: os.Getenv("client_secret"),
+		scope: os.Getenv("scope"),
 
 		// access_token
 		// expires_time

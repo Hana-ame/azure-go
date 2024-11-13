@@ -8,9 +8,9 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/myiter"
 	"github.com/Hana-ame/azure-go/syncmapwithcnt"
-	"github.com/Hana-ame/orderedmap"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	_ "github.com/joho/godotenv/autoload"

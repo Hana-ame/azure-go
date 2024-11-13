@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Hana-ame/orderedmap"
+	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 )
 
 // pass an iter function to iter then you can iter it.

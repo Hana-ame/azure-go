@@ -8,7 +8,7 @@ Get-Content .env | ForEach-Object {
 
 # 获取主机名
 $DST = $envVars['HOST']
-echo $DST
+Write-Output $DST
 
 $Env:GOOS = "linux"
 $Env:GOARCH = "amd64"

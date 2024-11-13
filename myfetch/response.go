@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/Hana-ame/orderedmap"
+	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 )
 
 // this function receive json request.

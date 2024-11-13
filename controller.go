@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/syncmapwithcnt"
-	"github.com/Hana-ame/orderedmap"
 	"github.com/gin-gonic/gin"
 )
 

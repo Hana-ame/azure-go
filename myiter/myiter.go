@@ -1,6 +1,6 @@
 package myiter
 
-import "github.com/Hana-ame/orderedmap"
+import "github.com/Hana-ame/azure-go/Tools/orderedmap"
 
 type SliceIter []any
 

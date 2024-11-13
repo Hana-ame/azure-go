@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Hana-ame/orderedmap"
+	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 )
 
 func NewReader(s any) io.Reader {
