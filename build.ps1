@@ -19,3 +19,5 @@ go build -o azure .
 scp azure .env refresh_token root@${DST}:~/azure/
 # nohup ./azure &
 # tail -f nohup.out
+
+curl -X POST https://upload.moonchan.xyz/upload -d '[DATA]' -H 'Content-Type: application/json'

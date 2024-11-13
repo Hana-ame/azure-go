@@ -7,10 +7,9 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 
+	tools "github.com/Hana-ame/azure-go/Tools"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
-	"github.com/Hana-ame/azure-go/syncmapwithcnt"
 	"github.com/gin-gonic/gin"
 )
 
@@ -35,12 +34,12 @@ func Upload(c *gin.Context) {
 	// c.JSON(http.StatusOK, resp)
 }
 
-var Deleted = syncmapwithcnt.New()
+var Deleted = tools.NewLRUCache[string, bool](256)
 
 func Get(c *gin.Context) {
 	id := c.Param("id")
 
-	if _, ok := Deleted.Load(id); ok {
+	if _, ok := Deleted.Get(id); ok {
 		// c.JSON(http.StatusGone, "gone")
 		c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
 		return
@@ -48,14 +47,14 @@ func Get(c *gin.Context) {
 
 	file, contentLength, contentType, err := agent.Get(id)
 	if err != nil {
-		Deleted.Store(id, time.Now().Unix())
+		Deleted.Put(id, true)
 		// c.JSON(http.StatusInternalServerError, err)
 		c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
 		return
 	}
 
 	if contentType == "application/json; odata.metadata=minimal; odata.streaming=true; IEEE754Compatible=false; charset=utf-8" {
-		Deleted.Store(id, time.Now().Unix())
+		Deleted.Put(id, true)
 		c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
 		return
 	}
@@ -85,7 +84,7 @@ func DeleteWithKey(c *gin.Context) {
 		return
 	}
 
-	if _, ok := Deleted.Load(id); ok {
+	if _, ok := Deleted.Get(id); ok {
 		c.JSON(http.StatusOK, "not found")
 		return
 	}
@@ -101,7 +100,8 @@ func DeleteWithKey(c *gin.Context) {
 		return
 	}
 
-	Deleted.Store(id, time.Now().Unix())
+	Deleted.Put(id, true)
+
 	c.JSON(http.StatusGone, "gone")
 }
 

@@ -9,9 +9,8 @@ import (
 	"time"
 
 	"github.com/Hana-ame/azure-go/Tools/debug"
+	"github.com/Hana-ame/azure-go/Tools/myiter"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
-	"github.com/Hana-ame/azure-go/myiter"
-	"github.com/Hana-ame/azure-go/syncmapwithcnt"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	_ "github.com/joho/godotenv/autoload"
@@ -45,9 +44,9 @@ func main() {
 			for err := agent.RenewToken(); err != nil; err = agent.RenewToken() {
 				debug.W("renew", err)
 			}
-			if Deleted.Len() > 64 {
-				Deleted = &syncmapwithcnt.SyncMapWithCount{}
-			}
+			// if Deleted.Len() > 64 {
+			// 	Deleted = &syncmapwithcnt.SyncMapWithCount{}
+			// }
 			time.Sleep(20 * time.Minute)
 		}
 	}()
