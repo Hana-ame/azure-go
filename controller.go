@@ -110,7 +110,7 @@ func CreateUploadSession(c *gin.Context) {
 
 	resp, err := agent.CreateUploadSession(ContentType, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, err)
+		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
 

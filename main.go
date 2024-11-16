@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Hana-ame/azure-go/Tools/debug"
+	middleware "github.com/Hana-ame/azure-go/Tools/my_gin_middleware"
 	"github.com/Hana-ame/azure-go/Tools/myiter"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/gin-gonic/gin"
@@ -52,6 +53,7 @@ func main() {
 	}()
 
 	r := gin.Default()
+	r.Use(middleware.CORSMiddleware())
 	r.PUT("/api/upload", Upload)
 	r.POST("/api/upload", CreateUploadSession)
 	r.GET("/api/:id/*fn", Get)

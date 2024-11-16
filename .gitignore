@@ -6,7 +6,10 @@ worker.js
 .env
 refresh_token
 access_token
+last_result.json
 
 *.bin
 azure.bin
 azure
+
+__debug_*

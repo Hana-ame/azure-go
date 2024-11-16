@@ -14,10 +14,17 @@ $Env:GOOS = "linux"
 $Env:GOARCH = "amd64"
 $Env:CGO_ENABLED=0
 go build -o azure . 
+Remove-Item azure.bin
+Copy-Item azure azure.bin
+
+# 使用go live上传文件
+# cd ~/azure && ~/download.sh azure.bin azure
+
 
 # 使用 scp 上传文件
-scp azure .env refresh_token root@${DST}:~/azure/
+scp azure root@${DST}:~/azure/
+# scp azure .env refresh_token root@${DST}:~/azure/
+
+# 运行
 # nohup ./azure &
 # tail -f nohup.out
-
-curl -X POST https://upload.moonchan.xyz/upload -d '[DATA]' -H 'Content-Type: application/json'

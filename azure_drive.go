@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	tools "github.com/Hana-ame/azure-go/Tools"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/myfetch"
 	"github.com/google/uuid"
@@ -45,14 +46,16 @@ func (agt *Agent) RenewToken() error {
 		"client_id":     agt.client_id,
 		"refresh_token": agt.refresh_token,
 		"grant_type":    "refresh_token",
-		// "client_secret": agt.client_secret,
+		"client_secret": agt.client_secret,
+		"scope":         os.Getenv("SCOPE"),
 	})
 	resp, err := myfetch.Fetch(
 		http.MethodPost,
 		endpoint,
 		map[string]string{
 			"Content-Type": "application/x-www-form-urlencoded",
-			"Origin":       os.Getenv("origin")},
+			// "Origin":       os.Getenv("origin"),
+		},
 		body,
 	)
 	if err != nil {
@@ -75,6 +78,9 @@ func (agt *Agent) RenewToken() error {
 
 	// save to file
 	godotenv.Write(map[string]string{"refresh_token": agt.refresh_token}, "refresh_token")
+	godotenv.Write(map[string]string{"access_token": agt.access_token}, "access_token")
+
+	tools.WriteJSONToFile("last_result.json", result)
 
 	return nil
 }
@@ -93,7 +99,7 @@ func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*or
 		http.MethodPut,
 		endpoint,
 		map[string]string{
-			"Origin":         os.Getenv("origin"),
+			// "Origin":         os.Getenv("origin"),
 			"Authorization":  "Bearer " + agt.access_token,
 			"Content-Type":   ContentType,
 			"Content-Length": ContentLength,
@@ -121,7 +127,7 @@ func (agt *Agent) Get(id string) (file io.ReadCloser, contentLength int64, conte
 		http.MethodGet,
 		endpoint,
 		map[string]string{
-			"Origin":        os.Getenv("origin"),
+			// "Origin":        os.Getenv("origin"),
 			"Authorization": "Bearer " + agt.access_token,
 		},
 		nil,
@@ -145,7 +151,7 @@ func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 		http.MethodDelete,
 		endpoint,
 		map[string]string{
-			"Origin":        os.Getenv("origin"),
+			// "Origin":        os.Getenv("origin"),
 			"Authorization": "Bearer " + agt.access_token,
 		},
 		nil,
@@ -173,7 +179,7 @@ func (agt *Agent) CreateUploadSession(ContentType string, body io.Reader) (*orde
 		http.MethodPost,
 		endpoint,
 		map[string]string{
-			"Origin":        os.Getenv("origin"),
+			// "Origin":        os.Getenv("origin"),
 			"Authorization": "Bearer " + agt.access_token,
 		},
 		nil,
