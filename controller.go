@@ -38,6 +38,7 @@ var Deleted = tools.NewLRUCache[string, bool](256)
 
 func Get(c *gin.Context) {
 	id := c.Param("id")
+	fn := c.Param("fn")
 
 	if _, ok := Deleted.Get(id); ok {
 		// c.JSON(http.StatusGone, "gone")
@@ -45,7 +46,7 @@ func Get(c *gin.Context) {
 		return
 	}
 
-	file, contentLength, contentType, err := agent.Get(id)
+	file, contentLength, contentType, err := agent.Get(id, fn)
 	if err != nil {
 		Deleted.Put(id, true)
 		// c.JSON(http.StatusInternalServerError, err)
@@ -64,6 +65,10 @@ func Get(c *gin.Context) {
 
 func Delete(c *gin.Context) {
 	id := c.Param("id")
+	if c.Query("delete") != "delete" {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 
 	_, err := agent.Delete(id)
 	if err != nil {

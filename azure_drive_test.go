@@ -126,7 +126,7 @@ func TestGet(t *testing.T) {
 		refresh_token: os.Getenv("refresh_token"),
 	}
 	// str := readFileToString("1.jpg")
-	r, _, _, _ := agent.Get(id)
+	r, _, _, _ := agent.Get(id, "")
 	readerSaveToFile(r)
 }
 
@@ -151,8 +151,22 @@ func TestDelete(t *testing.T) {
 }
 
 func TestMine(t *testing.T) {
-	s := contentTypeToExtend("image/png")
-	log.Println(s)
+	mime := []string{
+		"audio/x-m4a",
+		"audio/mpeg",
+	}
+	{
+		s := contentTypeToExtend("image/png")
+		log.Println(s)
+	}
+	{
+		s := contentTypeToExtend("application/x-msdownload")
+		log.Println(s)
+	}
+	for _, s := range mime {
+		s = contentTypeToExtend(s)
+		log.Println(s)
+	}
 }
 
 func readFileToString(fn string) string {
@@ -208,4 +222,9 @@ func TestCreateSession(t *testing.T) {
 	r, err := agent.CreateUploadSession("image/jpeg", f)
 	fmt.Println(err)
 	debug.OrderedMap(r)
+}
+
+func TestAgainMINE(t *testing.T) {
+	a := contentTypeToExtend("image/webp")
+	fmt.Println(a)
 }

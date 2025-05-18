@@ -5,10 +5,12 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	tools "github.com/Hana-ame/azure-go/Tools"
+	"github.com/Hana-ame/azure-go/Tools/debug"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/myfetch"
 	"github.com/google/uuid"
@@ -120,7 +122,7 @@ func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*or
 
 // TODO: add cache for deleted pictures.
 // get picture body reader
-func (agt *Agent) Get(id string) (file io.ReadCloser, contentLength int64, contentType string, err error) {
+func (agt *Agent) Get(id, fn string) (file io.ReadCloser, contentLength int64, contentType string, err error) {
 	endpoint := `https://graph.microsoft.com/v1.0/me/drive/items/` + id + `/content`
 
 	resp, err := myfetch.Fetch(
@@ -137,8 +139,12 @@ func (agt *Agent) Get(id string) (file io.ReadCloser, contentLength int64, conte
 	}
 
 	contentLength = resp.ContentLength
-	contentType = resp.Header.Get("Content-Type")
-
+	ext := filepath.Ext(fn)
+	if ext != "" {
+		contentType = mime.TypeByExtension(ext)
+	} else {
+		contentType = resp.Header.Get("Content-Type")
+	}
 	file = resp.Body
 	return
 }
@@ -213,6 +219,7 @@ var KEYS = []string{
 
 func contentTypeToExtend(mimeType string) string {
 	extensions, err := mime.ExtensionsByType(mimeType)
+	debug.I("mime", extensions)
 	if err != nil || len(extensions) == 0 {
 		return ""
 	}
