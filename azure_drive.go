@@ -5,7 +5,6 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -134,18 +133,10 @@ func (agt *Agent) Get(id, fn string) (file io.ReadCloser, contentLength int64, c
 		},
 		nil,
 	)
-	if err != nil {
-		return
-	}
-
-	contentLength = resp.ContentLength
-	ext := filepath.Ext(fn)
-	if ext != "" {
-		contentType = mime.TypeByExtension(ext)
-	} else {
-		contentType = resp.Header.Get("Content-Type")
-	}
 	file = resp.Body
+	contentLength = resp.ContentLength
+	contentType = resp.Header.Get("Content-Type")
+
 	return
 }
 
