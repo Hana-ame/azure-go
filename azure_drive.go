@@ -133,6 +133,9 @@ func (agt *Agent) Get(id, fn string) (file io.ReadCloser, contentLength int64, c
 		},
 		nil,
 	)
+	if err != nil {
+		return
+	}
 	file = resp.Body
 	contentLength = resp.ContentLength
 	contentType = resp.Header.Get("Content-Type")
