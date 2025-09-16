@@ -60,7 +60,7 @@ func TestXxx(t *testing.T) {
 
 	debug.OrderedMap(result)
 
-	o, _ := tools.ReadFileToJSON(".json")
+	o, _ := tools.ReadJSONFile(".json")
 	o.Set("access_token", result.GetOrDefault("access_token", "agent.access_token").(string))
 	tools.WriteJSONToFile(".json", o)
 }

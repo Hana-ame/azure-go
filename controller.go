@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	tools "github.com/Hana-ame/azure-go/Tools"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
@@ -44,7 +45,7 @@ func Get(c *gin.Context) {
 	ext := filepath.Ext(fn)
 
 	if timestamp, ok := Deleted.Get(id); ok {
-		if timestamp+(7200<<16) < tools.NewTimeStamp() {
+		if timestamp+(1800<<16) < tools.NewTimeStamp() {
 			// c.JSON(http.StatusGone, "gone")
 			c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
 			return
@@ -53,28 +54,39 @@ func Get(c *gin.Context) {
 
 	file, contentLength, contentType, err := agent.Get(id, fn)
 	if err != nil {
-		Deleted.Put(id, tools.NewTimeStamp())
+		if strings.Contains(err.Error(), "connection reset by peer") {
+			c.Redirect(http.StatusFound, "/api/"+id+"/"+fn)
+			return
+		}
 		// c.JSON(http.StatusInternalServerError, err)
 		// c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
-		c.DataFromReader(
-			http.StatusFound,
-			contentLength,
-			tools.Or(
-				func(ext string) string {
-					// log.Println(ext)
-					if ext == ".webp" {
-						// log.Println("image/webp")
-						return "image/webp"
-					}
-					return ""
-				}(ext),
-				mime.TypeByExtension(ext),
-				contentType,
-			), file, map[string]string{
-				"Location":            os.Getenv("default"),
-				"Content-Disposition": "inline",
-			})
+		c.String(http.StatusInternalServerError, err.Error())
+
+		// 暂时取消删除文件Redirect
+		// Deleted.Put(id, tools.NewTimeStamp())
 		return
+		// 不知道这里为什么error了会还是这个逻辑，应该是写错了。
+		// 不对，会导致错误。
+		//
+		// c.DataFromReader(
+		// 	http.StatusFound,
+		// 	contentLength,
+		// 	tools.Or(
+		// 		func(ext string) string {
+		// 			// log.Println(ext)
+		// 			if ext == ".webp" {
+		// 				// log.Println("image/webp")
+		// 				return "image/webp"
+		// 			}
+		// 			return ""
+		// 		}(ext),
+		// 		mime.TypeByExtension(ext),
+		// 		contentType,
+		// 	), file, map[string]string{
+		// 		"Location":            os.Getenv("default"),
+		// 		"Content-Disposition": "inline",
+		// 	})
+		// return
 	}
 
 	if contentType == "application/json; odata.metadata=minimal; odata.streaming=true; IEEE754Compatible=false; charset=utf-8" {
@@ -88,14 +100,7 @@ func Get(c *gin.Context) {
 	}
 
 	c.DataFromReader(http.StatusOK, contentLength, tools.Or(
-		func(ext string) string {
-			// log.Println(ext)
-			if ext == ".webp" {
-				// log.Println("image/webp")
-				return "image/webp"
-			}
-			return ""
-		}(ext),
+		tools.Ternary(ext == ".webp", "image/webp", ""),
 		mime.TypeByExtension(ext),
 		contentType,
 	), file, map[string]string{"Content-Disposition": "inline"})
@@ -103,10 +108,12 @@ func Get(c *gin.Context) {
 
 func Delete(c *gin.Context) {
 	id := c.Param("id")
-	if c.Query("delete") != "delete" {
-		c.AbortWithStatus(http.StatusNotFound)
-		return
-	}
+
+	// 小限制,暂时取消
+	// if c.Query("delete") != "delete" {
+	// 	c.AbortWithStatus(http.StatusNotFound)
+	// 	return
+	// }
 
 	_, err := agent.Delete(id)
 	if err != nil {
@@ -116,6 +123,8 @@ func Delete(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, err)
 		}
 	}
+
+	Deleted.Put(id, tools.NewTimeStamp())
 }
 
 func DeleteWithKey(c *gin.Context) {
@@ -127,6 +136,7 @@ func DeleteWithKey(c *gin.Context) {
 		return
 	}
 
+	// 在cache中找到,说明已经删除
 	if _, ok := Deleted.Get(id); ok {
 		c.JSON(http.StatusOK, "not found")
 		return
@@ -143,9 +153,9 @@ func DeleteWithKey(c *gin.Context) {
 		return
 	}
 
-	Deleted.Put(id, tools.NewTimeStamp())
-
 	c.JSON(http.StatusGone, "gone")
+
+	Deleted.Put(id, tools.NewTimeStamp())
 }
 
 func CreateUploadSession(c *gin.Context) {

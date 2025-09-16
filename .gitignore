@@ -11,5 +11,6 @@ last_result.json
 *.bin
 azure.bin
 azure
+azure-go
 
 __debug_*
