@@ -28,6 +28,7 @@ func TestTest(t *testing.T) {
 }
 
 func TestXxx(t *testing.T) {
+	godotenv.Load(".env")
 	godotenv.Load("refresh_token")
 
 	endpoint := `https://login.microsoftonline.com/` + os.Getenv("tenent_id") + `/oauth2/v2.0/token`

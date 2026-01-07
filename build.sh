@@ -26,12 +26,14 @@ go build -o azure .
 rm -f azure.bin
 
 # 复制生成的文件
-cp azure azure.bin
+# mv azure azure.bin
 
 # 使用 scp 上传文件
-~/script/scp.sh azure.bin root@"$DST":~/azure/
+~/script/scp.sh azure root@"$DST":~/azure/
 # scp azure .env refresh_token root@"$DST":~/azure/
 
 # 运行
+# pkill azure
+# pkill azure.bin
 # nohup ./azure &
 # tail -f nohup.out

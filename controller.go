@@ -39,6 +39,13 @@ func Upload(c *gin.Context) {
 
 var Deleted = tools.NewLRUCache[string, int64](256)
 
+func Redirect(c *gin.Context) {
+	id := c.Param("id")
+	fn := c.Param("fn")
+	prefix := os.Getenv("ENDPOINT_PREFIX") //ENDPOINT_PREFIX=https://uploads.moonchan.xyz/api/
+	c.Redirect(301, prefix+id+"/"+fn)
+}
+
 func Get(c *gin.Context) {
 	id := c.Param("id")
 	fn := c.Param("fn")
