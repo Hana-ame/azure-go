@@ -66,7 +66,7 @@ func main() {
 		}
 	}()
 
-	go main_with_redirect() //
+	// go main_with_redirect() // not used.
 
 	r := gin.Default()
 	r.Use(middleware.CORSMiddleware())
