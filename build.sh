@@ -14,10 +14,10 @@ done < .env
 DST=${envVars['HOST']}
 echo "$DST"
 
-# 设置环境变量
-export GOOS=linux
-export GOARCH=amd64
-export CGO_ENABLED=0
+# # 设置环境变量
+# export GOOS=linux
+# export GOARCH=amd64
+# export CGO_ENABLED=0
 
 # 编译 Go 程序
 go build -o azure .
@@ -29,7 +29,7 @@ rm -f azure.bin
 cp azure azure.bin
 
 # 使用 scp 上传文件
-~/script/scp.sh azure.bin root@"$DST":~/azure/
+~/script/scp.sh azure.bin root@"$DST":~/azure/temp.bin
 # scp azure .env refresh_token root@"$DST":~/azure/
 
 # 运行

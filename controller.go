@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	tools "github.com/Hana-ame/azure-go/Tools"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
@@ -39,71 +38,75 @@ func Upload(c *gin.Context) {
 
 var Deleted = tools.NewLRUCache[string, int64](256)
 
+// 假设你想设置过期时间为 30分钟
+// 30分钟 = 1800秒 = 1,800,000 毫秒
+// 在你的算法中，需要左移 16 位
+const CacheExpireDelta = 1800 * 1000 << 16
+
 func Get(c *gin.Context) {
 	id := c.Param("id")
 	fn := c.Param("fn")
 	ext := filepath.Ext(fn)
 
+	// 1. 检查缓存中是否标记为已删除
 	if timestamp, ok := Deleted.Get(id); ok {
-		if timestamp+(1800<<16) < tools.NewTimeStamp() {
-			// c.JSON(http.StatusGone, "gone")
-			c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
+		// 如果 当前时间 > (记录时间 + 过期时长)，说明缓存已过期，不再拦截
+		// 或者你的逻辑是：只要在过期时间内，就拦截？
+		// 你的原代码：timestamp + delta < now
+		// 意思是：如果 (记录时间 + 1.8秒) 小于 当前时间 ——> 即记录时间是很久以前的
+		// 也就说：只有 1.8 秒内的记录会被认为是“未过期”并拦截？这看起来像是在防抖动。
+
+		// 修正后的逻辑：如果是想封禁30分钟
+		if tools.NewTimeStamp() < timestamp+CacheExpireDelta {
+			c.Redirect(http.StatusFound, os.Getenv("default"))
 			return
 		}
+		// 如果超过时间了，可能想重试？或者应该从 Cache 中移除？
 	}
 
+	// 2. 请求上游
 	file, contentLength, contentType, err := agent.Get(id, fn)
+
+	// 3. 错误处理
 	if err != nil {
-		if strings.Contains(err.Error(), "connection reset by peer") {
-			c.Redirect(http.StatusFound, "/api/"+id+"/"+fn)
-			return
-		}
-		// c.JSON(http.StatusInternalServerError, err)
-		// c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
+		// 记录日志，不要直接把 err 给前端
+		// fmt.Printf("Error getting file %s: %v\n", id, err)
+
+		// if strings.Contains(err.Error(), "connection reset by peer") {
+		// 	// 避免死循环，最好限制重试次数，或者直接返回 502
+		// 	c.String(http.StatusBadGateway, "Upstream connection reset, please try again.")
+		// 	return
+		// }
+
+		// c.String(http.StatusInternalServerError, "Internal Service Error")
 		c.String(http.StatusInternalServerError, err.Error())
-
-		// 暂时取消删除文件Redirect
-		// Deleted.Put(id, tools.NewTimeStamp())
 		return
-		// 不知道这里为什么error了会还是这个逻辑，应该是写错了。
-		// 不对，会导致错误。
-		//
-		// c.DataFromReader(
-		// 	http.StatusFound,
-		// 	contentLength,
-		// 	tools.Or(
-		// 		func(ext string) string {
-		// 			// log.Println(ext)
-		// 			if ext == ".webp" {
-		// 				// log.Println("image/webp")
-		// 				return "image/webp"
-		// 			}
-		// 			return ""
-		// 		}(ext),
-		// 		mime.TypeByExtension(ext),
-		// 		contentType,
-		// 	), file, map[string]string{
-		// 		"Location":            os.Getenv("default"),
-		// 		"Content-Disposition": "inline",
-		// 	})
-		// return
 	}
 
+	// !!! 关键修复：确保关闭 file !!!
+	defer file.Close()
+
+	// 4. 检查上游是否返回了特定的错误 JSON (Soft 404)
 	if contentType == "application/json; odata.metadata=minimal; odata.streaming=true; IEEE754Compatible=false; charset=utf-8" {
-		Deleted.Put(id, tools.NewTimeStamp())
-		// c.Redirect(http.StatusFound, os.Getenv("default")) // 替换成你想要重定向的 URL
-		c.DataFromReader(http.StatusFound, contentLength, tools.Or(mime.TypeByExtension(ext), contentType), file, map[string]string{
-			"Location":            os.Getenv("default"),
-			"Content-Disposition": "inline",
-		})
+		// 标记为已删除
+		// Deleted.Put(id, tools.NewTimeStamp())
+
+		// 文件不存在/已删除，直接重定向到默认图，忽略 body
+		// c.Redirect(http.StatusFound, os.Getenv("default"))
+		c.Status(http.StatusInternalServerError)
 		return
 	}
 
-	c.DataFromReader(http.StatusOK, contentLength, tools.Or(
+	// 5. 正常返回文件
+	finalContentType := tools.Or(
 		tools.Ternary(ext == ".webp", "image/webp", ""),
 		mime.TypeByExtension(ext),
 		contentType,
-	), file, map[string]string{"Content-Disposition": "inline"})
+	)
+
+	c.DataFromReader(http.StatusOK, contentLength, finalContentType, file, map[string]string{
+		"Content-Disposition": "inline",
+	})
 }
 
 func Delete(c *gin.Context) {
