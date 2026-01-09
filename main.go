@@ -17,7 +17,21 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 )
 
+// global
 var agent *Agent
+
+func main_with_redirect() {
+
+	r := gin.Default()
+	r.Use(middleware.CORSMiddleware())
+	r.PUT("/api/upload", Upload)
+	r.POST("/api/upload", CreateUploadSession)
+	r.GET("/api/:id/*fn", Redirect)
+	r.DELETE("/api/:id/:key", Delete) // 不能这么做的样子
+	r.GET("/api/delete/:id/:key", DeleteWithKey)
+
+	r.Run("127.25.11.27:8080")
+}
 
 func main() {
 	godotenv.Load("refresh_token")
@@ -51,6 +65,8 @@ func main() {
 			time.Sleep(20 * time.Minute)
 		}
 	}()
+
+	go main_with_redirect() //
 
 	r := gin.Default()
 	r.Use(middleware.CORSMiddleware())

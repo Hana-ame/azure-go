@@ -43,6 +43,13 @@ var Deleted = tools.NewLRUCache[string, int64](256)
 // 在你的算法中，需要左移 16 位
 const CacheExpireDelta = 1800 * 1000 << 16
 
+func Redirect(c *gin.Context) {
+	id := c.Param("id")
+	fn := c.Param("fn")
+	prefix := os.Getenv("ENDPOINT_PREFIX") //ENDPOINT_PREFIX=https://uploads.moonchan.xyz/api/
+	c.Redirect(301, prefix+id+"/"+fn)
+}
+
 func Get(c *gin.Context) {
 	id := c.Param("id")
 	fn := c.Param("fn")
