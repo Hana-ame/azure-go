@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"reflect"
 	"time"
@@ -12,6 +14,7 @@ import (
 	middleware "github.com/Hana-ame/azure-go/Tools/my_gin_middleware"
 	"github.com/Hana-ame/azure-go/Tools/myiter"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
+	"github.com/Hana-ame/azure-go/myfetch"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	_ "github.com/joho/godotenv/autoload"
@@ -34,6 +37,21 @@ func main_with_redirect() {
 }
 
 func main() {
+
+	myfetch.DefaultClient = &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				LocalAddr: &net.TCPAddr{IP: net.IPv4(142, 171, 157, 74)},
+				Timeout:   90 * time.Second,
+				KeepAlive: 90 * time.Second,
+			}).DialContext,
+			MaxIdleConns:        100,
+			IdleConnTimeout:     10 * time.Second,
+			TLSHandshakeTimeout: 30 * time.Second,
+		},
+		Timeout: 300 * time.Second,
+	}
+
 	godotenv.Load("refresh_token")
 	overloadEnvByJsonFile(".json")
 

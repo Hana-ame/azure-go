@@ -1,6 +1,10 @@
 package myfetch
 
-import "net/http"
+import (
+	"net"
+	"net/http"
+	"time"
+)
 
 type clients struct {
 	cnt     uint8
@@ -21,11 +25,24 @@ func (cs *clients) setClients(clients []*http.Client) {
 }
 
 var DefaultClients *clients = &clients{cnt: 0, clients: []*http.Client{}}
+var DefaultClient = &http.Client{
+	Transport: &http.Transport{
+		DialContext: (&net.Dialer{
+			LocalAddr: &net.TCPAddr{IP: net.IPv4(142, 171, 157, 74)},
+			Timeout:   90 * time.Second,
+			KeepAlive: 90 * time.Second,
+		}).DialContext,
+		MaxIdleConns:        100,
+		IdleConnTimeout:     10 * time.Second,
+		TLSHandshakeTimeout: 30 * time.Second,
+	},
+	Timeout: 300 * time.Second,
+}
 
 // public methods
 
 func Client() *http.Client {
-	return DefaultClients.pick()
+	return DefaultClient
 }
 
 func SetClients(clients []*http.Client) {
