@@ -5,20 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"strings"
 
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 )
-
-func NewReader(s any) io.Reader {
-	switch v := s.(type) {
-	case string:
-		return strings.NewReader(v)
-	case []byte:
-		return bytes.NewReader(v)
-	}
-	return nil
-}
 
 type URLEncodedForm struct {
 	data any

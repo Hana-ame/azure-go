@@ -8,13 +8,7 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 )
 
-// HashStore maps content hashes to file paths for deduplication.
-type HashStore interface {
-	Lookup(md5hex string) (path string, err error)
-	Store(md5hex, path string) error
-}
-
-// SQLiteHashStore implements HashStore using SQLite.
+// SQLiteHashStore implements storage.HashStore using SQLite.
 type SQLiteHashStore struct {
 	db *sql.DB
 }

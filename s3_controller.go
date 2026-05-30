@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Hana-ame/azure-go/storage"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -16,10 +17,10 @@ import (
 // S3Controller handles S3-compatible API requests.
 // All storage details (including dedup) are handled by the driver.
 type S3Controller struct {
-	driver StorageDriver
+	driver storage.StorageDriver
 }
 
-func NewS3Controller(driver StorageDriver) *S3Controller {
+func NewS3Controller(driver storage.StorageDriver) *S3Controller {
 	return &S3Controller{driver: driver}
 }
 

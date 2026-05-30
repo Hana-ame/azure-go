@@ -101,7 +101,7 @@ func main() {
 	r.DELETE("/api/:id/:key", Delete) // 不能这么做的样子
 	r.GET("/api/delete/:id/:key", DeleteWithKey)
 
-	// S3-compatible API (driver handles its own dedup internally)
+	// S3-compatible API
 	hashStore, err := NewSQLiteHashStore("hashes.db")
 	if err != nil {
 		log.Printf("WARN: hash store init failed, dedup disabled: %v", err)

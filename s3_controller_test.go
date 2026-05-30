@@ -7,11 +7,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Hana-ame/azure-go/storage"
 	"github.com/gin-gonic/gin"
 )
 
 type mockDriver struct {
-	putResult  *PutResult
+	putResult  *storage.PutResult
 	putErr     error
 	getBody    io.ReadCloser
 	getLen     int64
@@ -25,7 +26,7 @@ type mockDriver struct {
 	deletedPaths []string
 }
 
-func (m *mockDriver) Put(path, contentType string, body io.Reader) (*PutResult, error) {
+func (m *mockDriver) Put(path, contentType string, body io.Reader) (*storage.PutResult, error) {
 	return m.putResult, m.putErr
 }
 func (m *mockDriver) Get(path string) (io.ReadCloser, int64, string, error) {
@@ -39,7 +40,7 @@ func (m *mockDriver) Head(path string) (int64, string, error) {
 	return m.headLen, m.headType, m.headErr
 }
 
-func setupTestRouter(driver StorageDriver) *gin.Engine {
+func setupTestRouter(driver storage.StorageDriver) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	s3 := NewS3Controller(driver)
@@ -52,7 +53,7 @@ func setupTestRouter(driver StorageDriver) *gin.Engine {
 
 func TestPutObject_Success(t *testing.T) {
 	drv := &mockDriver{
-		putResult: &PutResult{ID: "id-1", ETag: `"abc123"`},
+		putResult: &storage.PutResult{ID: "id-1", ETag: `"abc123"`},
 	}
 	r := setupTestRouter(drv)
 
@@ -72,7 +73,7 @@ func TestPutObject_Success(t *testing.T) {
 
 func TestPutObject_Dedup(t *testing.T) {
 	drv := &mockDriver{
-		putResult: &PutResult{ID: "id-1", ETag: `"def456"`, DupPath: "oldbucket/file.txt"},
+		putResult: &storage.PutResult{ID: "id-1", ETag: `"def456"`, DupPath: "oldbucket/file.txt"},
 	}
 	r := setupTestRouter(drv)
 
