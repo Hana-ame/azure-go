@@ -48,9 +48,9 @@ func (f *URLEncodedForm) Reader() (io.Reader, error) {
 		for _, k := range bv.Keys() {
 			switch v, _ := bv.Get(k); sv := v.(type) {
 			case string:
-				data.Set(k, sv)
+				data.Set(k.(string), sv)
 			case []string:
-				data[k] = sv
+				data[k.(string)] = sv
 			}
 		}
 		buf.WriteString(data.Encode())

@@ -19,9 +19,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # 关键点：设置为 true 或 recursive 以拉取子模块
-          submodules: recursive
-          # 建议同时拉取所有历史，防止某些版本计算工具失效
           fetch-depth: 0
 
       - name: Set up Go

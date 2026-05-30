@@ -33,15 +33,20 @@ func main_with_redirect() {
 	r.DELETE("/api/:id/:key", Delete) // 不能这么做的样子
 	r.GET("/api/delete/:id/:key", DeleteWithKey)
 
-	r.Run("127.25.11.27:8080")
+	r.Run(":8080")
 }
 
 func main() {
 
+	var localAddr *net.TCPAddr
+	if lip := os.Getenv("LOCAL_IP"); lip != "" {
+		localAddr = &net.TCPAddr{IP: net.ParseIP(lip)}
+	}
+
 	myfetch.DefaultClient = &http.Client{
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
-				LocalAddr: &net.TCPAddr{IP: net.IPv4(142, 171, 157, 74)},
+				LocalAddr: localAddr,
 				Timeout:   90 * time.Second,
 				KeepAlive: 90 * time.Second,
 			}).DialContext,
@@ -88,13 +93,30 @@ func main() {
 
 	r := gin.Default()
 	r.Use(middleware.CORSMiddleware())
+
+	// Original API
 	r.PUT("/api/upload", Upload)
 	r.POST("/api/upload", CreateUploadSession)
 	r.GET("/api/:id/*fn", Get)
 	r.DELETE("/api/:id/:key", Delete) // 不能这么做的样子
 	r.GET("/api/delete/:id/:key", DeleteWithKey)
 
-	r.Run("127.23.12.17:8080")
+	// S3-compatible API (driver handles its own dedup internally)
+	hashStore, err := NewSQLiteHashStore("hashes.db")
+	if err != nil {
+		log.Printf("WARN: hash store init failed, dedup disabled: %v", err)
+	}
+	s3 := NewS3Controller(NewAzureDriver(agent, hashStore))
+	r.PUT("/:bucket/*key", s3.PutObject)
+	r.GET("/:bucket/*key", s3.GetObject)
+	r.DELETE("/:bucket/*key", s3.DeleteObject)
+	r.HEAD("/:bucket/*key", s3.HeadObject)
+
+	addr := os.Getenv("LISTEN_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+	r.Run(addr)
 }
 
 // this function receive json request.

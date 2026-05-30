@@ -19,6 +19,7 @@ import (
 )
 
 func TestTest(t *testing.T) {
+	skipIfNoCreds(t)
 	now := time.Now().Unix()
 	fmt.Println(now)
 	env, _ := godotenv.Unmarshal("KEY=value")
@@ -28,6 +29,7 @@ func TestTest(t *testing.T) {
 }
 
 func TestXxx(t *testing.T) {
+	skipIfNoCreds(t)
 	godotenv.Load(".env")
 	godotenv.Load("refresh_token")
 
@@ -59,7 +61,7 @@ func TestXxx(t *testing.T) {
 
 	fmt.Println(result)
 
-	debug.OrderedMap(result)
+	fmt.Println("result:", result)
 
 	o, _ := tools.ReadJSONFile(".json")
 	o.Set("access_token", result.GetOrDefault("access_token", "agent.access_token").(string))
@@ -67,6 +69,7 @@ func TestXxx(t *testing.T) {
 }
 
 func TestRenew(t *testing.T) {
+	skipIfNoCreds(t)
 	godotenv.Load("refresh_token")
 	agent := Agent{
 		tenent_id:    os.Getenv("tenent_id"),
@@ -91,6 +94,7 @@ func TestRenew(t *testing.T) {
 }
 
 func TestUpload(t *testing.T) {
+	skipIfNoCreds(t)
 	godotenv.Load("access_token")
 	agent := Agent{
 		tenent_id:     os.Getenv("tenent_id"),
@@ -111,6 +115,7 @@ func TestUpload(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
+	skipIfNoCreds(t)
 	id := "01LLWEUU3FBIELXXTESJBJLXTICCTSLP7S"
 	id = "01LLWEUUYYXMU2N4A4A5G3MYUDWS6IQSDW"
 
@@ -132,6 +137,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	skipIfNoCreds(t)
 	id := "01LLWEUU3FBIELXXTESJBJLXTICCTSLP7S"
 
 	godotenv.Load("access_token")
@@ -181,10 +187,16 @@ func readFileToString(fn string) string {
 func accessToken() string {
 	jsonFIle, _ := os.ReadFile(".json")
 	var m map[string]any
-
 	json.Unmarshal(jsonFIle, &m)
+	tok, _ := m[`access_token`].(string)
+	return tok
+}
 
-	return m[`access_token`].(string)
+func skipIfNoCreds(t *testing.T) {
+	t.Helper()
+	if os.Getenv("tenent_id") == "" || accessToken() == "" {
+		t.Skip("no Azure credentials, skipping integration test")
+	}
 }
 
 func readerSaveToFile(reader io.Reader) {
@@ -199,6 +211,7 @@ func TestMime(t *testing.T) {
 }
 
 func TestCreateSession(t *testing.T) {
+	skipIfNoCreds(t)
 	// godotenv.Load("access_token")
 	agent := Agent{
 		tenent_id:     os.Getenv("tenent_id"),
@@ -222,7 +235,7 @@ func TestCreateSession(t *testing.T) {
 	f, _ := os.Open("1.jpg")
 	r, err := agent.CreateUploadSession("image/jpeg", f)
 	fmt.Println(err)
-	debug.OrderedMap(r)
+	fmt.Println("result:", r)
 }
 
 func TestAgainMINE(t *testing.T) {

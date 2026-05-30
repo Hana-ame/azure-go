@@ -231,3 +231,76 @@ func pickSurfix(arr []string, keys []string) string {
 	}
 	return arr[0]
 }
+
+// --- StorageDriver interface implementation ---
+
+func (agt *Agent) Put(path, contentType string, body io.Reader) (string, error) {
+	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/` + path + `:/content`
+
+	resp, err := myfetch.Fetch(
+		http.MethodPut,
+		endpoint,
+		map[string]string{
+			"Authorization": "Bearer " + agt.access_token,
+			"Content-Type":  contentType,
+		},
+		body,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	result, err := myfetch.ResponseToJson(resp)
+	if err != nil {
+		return "", err
+	}
+	return result.GetOrDefault("id", "").(string), nil
+}
+
+func (agt *Agent) GetByPath(path string) (io.ReadCloser, int64, string, error) {
+	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/` + path + `:/content`
+
+	resp, err := myfetch.Fetch(
+		http.MethodGet,
+		endpoint,
+		map[string]string{
+			"Authorization": "Bearer " + agt.access_token,
+		},
+		nil,
+	)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	return resp.Body, resp.ContentLength, resp.Header.Get("Content-Type"), nil
+}
+
+func (agt *Agent) DeleteByPath(path string) error {
+	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/` + path
+
+	_, err := myfetch.Fetch(
+		http.MethodDelete,
+		endpoint,
+		map[string]string{
+			"Authorization": "Bearer " + agt.access_token,
+		},
+		nil,
+	)
+	return err
+}
+
+func (agt *Agent) HeadByPath(path string) (int64, string, error) {
+	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/` + path + `:/content`
+
+	resp, err := myfetch.Fetch(
+		http.MethodHead,
+		endpoint,
+		map[string]string{
+			"Authorization": "Bearer " + agt.access_token,
+		},
+		nil,
+	)
+	if err != nil {
+		return 0, "", err
+	}
+	return resp.ContentLength, resp.Header.Get("Content-Type"), nil
+}
