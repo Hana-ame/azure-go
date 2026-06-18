@@ -28,7 +28,7 @@ var DefaultClients *clients = &clients{cnt: 0, clients: []*http.Client{}}
 var DefaultClient = &http.Client{
 	Transport: &http.Transport{
 		DialContext: (&net.Dialer{
-			LocalAddr: &net.TCPAddr{IP: net.IPv4(142, 171, 157, 74)},
+			// LocalAddr: &net.TCPAddr{IP: net.IPv4(142, 171, 157, 74)},
 			Timeout:   90 * time.Second,
 			KeepAlive: 90 * time.Second,
 		}).DialContext,
