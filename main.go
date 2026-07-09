@@ -38,19 +38,15 @@ func main_with_redirect() {
 
 func main() {
 
-	var localAddr *net.TCPAddr
-	if lip := os.Getenv("LOCAL_IP"); lip != "" {
-		localAddr = &net.TCPAddr{IP: net.ParseIP(lip)}
-	}
-
 	myfetch.DefaultClient = &http.Client{
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
-				LocalAddr: localAddr,
 				Timeout:   90 * time.Second,
 				KeepAlive: 90 * time.Second,
 			}).DialContext,
 			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			MaxConnsPerHost:     200,
 			IdleConnTimeout:     10 * time.Second,
 			TLSHandshakeTimeout: 30 * time.Second,
 		},
