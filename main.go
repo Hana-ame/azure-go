@@ -58,6 +58,7 @@ func main() {
 	}
 
 	godotenv.Load("refresh_token")
+	godotenv.Load("access")
 	overloadEnvByJsonFile(".json")
 
 	agent = &Agent{

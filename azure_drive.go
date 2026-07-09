@@ -47,7 +47,6 @@ func (agt *Agent) RenewToken() error {
 		"client_id":     agt.client_id,
 		"refresh_token": agt.refresh_token,
 		"grant_type":    "refresh_token",
-		"client_secret": agt.client_secret,
 		"scope":         os.Getenv("SCOPE"),
 	})
 	resp, err := myfetch.Fetch(
@@ -55,7 +54,7 @@ func (agt *Agent) RenewToken() error {
 		endpoint,
 		map[string]string{
 			"Content-Type": "application/x-www-form-urlencoded",
-			// "Origin":       os.Getenv("origin"),
+			"Origin":       os.Getenv("origin"),
 		},
 		body,
 	)
@@ -79,7 +78,7 @@ func (agt *Agent) RenewToken() error {
 
 	// save to file
 	godotenv.Write(map[string]string{"refresh_token": agt.refresh_token}, "refresh_token")
-	godotenv.Write(map[string]string{"access_token": agt.access_token}, "access_token")
+	godotenv.Write(map[string]string{"access_token": agt.access_token}, "access")
 
 	tools.WriteJSONToFile("last_result.json", result)
 

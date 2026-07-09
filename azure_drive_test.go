@@ -95,7 +95,7 @@ func TestRenew(t *testing.T) {
 
 func TestUpload(t *testing.T) {
 	skipIfNoCreds(t)
-	godotenv.Load("access_token")
+	godotenv.Load("access")
 	agent := Agent{
 		tenent_id:     os.Getenv("tenent_id"),
 		client_id:     os.Getenv("client_id"),
@@ -119,7 +119,7 @@ func TestGet(t *testing.T) {
 	id := "01LLWEUU3FBIELXXTESJBJLXTICCTSLP7S"
 	id = "01LLWEUUYYXMU2N4A4A5G3MYUDWS6IQSDW"
 
-	godotenv.Load("access_token")
+	godotenv.Load("access")
 	agent := Agent{
 		tenent_id:     os.Getenv("tenent_id"),
 		client_id:     os.Getenv("client_id"),
@@ -140,7 +140,7 @@ func TestDelete(t *testing.T) {
 	skipIfNoCreds(t)
 	id := "01LLWEUU3FBIELXXTESJBJLXTICCTSLP7S"
 
-	godotenv.Load("access_token")
+	godotenv.Load("access")
 	agent := Agent{
 		tenent_id:     os.Getenv("tenent_id"),
 		client_id:     os.Getenv("client_id"),
@@ -241,4 +241,108 @@ func TestCreateSession(t *testing.T) {
 func TestAgainMINE(t *testing.T) {
 	a := contentTypeToExtend("image/webp")
 	fmt.Println(a)
+}
+
+func TestSaveAccessToken(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := tmpDir + "/access"
+
+	agt := &Agent{access_token: "test-access-token-value"}
+	godotenv.Write(map[string]string{"access_token": agt.access_token}, filePath)
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("failed to read access file: %v", err)
+	}
+	if want := "access_token=\"test-access-token-value\"\n"; string(data) != want {
+		t.Fatalf("expected %q, got %q", want, string(data))
+	}
+}
+
+func TestSaveRefreshToken(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := tmpDir + "/refresh_token"
+
+	agt := &Agent{refresh_token: "test-refresh-token-value"}
+	godotenv.Write(map[string]string{"refresh_token": agt.refresh_token}, filePath)
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("failed to read refresh_token file: %v", err)
+	}
+	if want := "refresh_token=\"test-refresh-token-value\"\n"; string(data) != want {
+		t.Fatalf("expected %q, got %q", want, string(data))
+	}
+}
+
+func TestRenewTokenPersistence(t *testing.T) {
+	skipIfNoCreds(t)
+
+	origAccess := readFileIfExists("access")
+	origRefresh := readFileIfExists("refresh_token")
+
+	defer func() {
+		if origAccess != "" {
+			os.WriteFile("access", []byte(origAccess), 0644)
+		} else {
+			os.Remove("access")
+		}
+		if origRefresh != "" {
+			os.WriteFile("refresh_token", []byte(origRefresh), 0644)
+		}
+	}()
+
+	godotenv.Load("refresh_token")
+	agent := Agent{
+		tenent_id:     os.Getenv("tenent_id"),
+		client_id:     os.Getenv("client_id"),
+		redirect_url:  os.Getenv("redirect_url"),
+		client_secret: os.Getenv("client_secret"),
+		scope:         os.Getenv("scope"),
+		access_token:  accessToken(),
+		refresh_token: os.Getenv("refresh_token"),
+		SALT:          os.Getenv("SALT"),
+	}
+
+	err := agent.RenewToken()
+	if err != nil {
+		t.Fatalf("RenewToken failed: %v", err)
+	}
+
+	// Verify access file content
+	data, err := os.ReadFile("access")
+	if err != nil {
+		t.Fatal("access file not created after refresh")
+	}
+	envMap, _ := godotenv.Unmarshal(string(data))
+	if got := envMap["access_token"]; got == "" {
+		t.Fatal("access_token not persisted to access file after refresh")
+	} else if got != agent.access_token {
+		t.Fatalf("access_token mismatch in file: %s vs %s", got, agent.access_token)
+	}
+
+	// Verify refresh_token file content
+	data, err = os.ReadFile("refresh_token")
+	if err != nil {
+		t.Fatal("refresh_token file not created after refresh")
+	}
+	envMap, _ = godotenv.Unmarshal(string(data))
+	if got := envMap["refresh_token"]; got == "" {
+		t.Fatal("refresh_token not persisted after refresh")
+	} else if got != agent.refresh_token {
+		t.Fatalf("refresh_token mismatch in file: %s vs %s", got, agent.refresh_token)
+	}
+
+	// Verify last_result.json
+	if _, err := os.Stat("last_result.json"); os.IsNotExist(err) {
+		t.Fatal("last_result.json not created after refresh")
+	}
+}
+
+func readFileIfExists(name string) string {
+	data, err := os.ReadFile(name)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
