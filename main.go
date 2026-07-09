@@ -23,6 +23,8 @@ import (
 // global
 var agent *Agent
 
+const Version = "v26.07.10"
+
 func main_with_redirect() {
 
 	r := gin.Default()
@@ -53,8 +55,23 @@ func main() {
 		Timeout: 300 * time.Second,
 	}
 
-	godotenv.Load("refresh_token")
-	godotenv.Load("access")
+	log.Printf("[Init] Version: %s", Version)
+
+	cwd, _ := os.Getwd()
+	log.Printf("[Init] Current Working Directory: %s", cwd)
+
+	if err := godotenv.Load("refresh_token"); err != nil {
+		log.Printf("[Init] Failed to load refresh_token file: %v", err)
+	} else {
+		log.Println("[Init] Successfully loaded from file: refresh_token")
+	}
+
+	if err := godotenv.Load("access"); err != nil {
+		log.Printf("[Init] Failed to load access file: %v", err)
+	} else {
+		log.Println("[Init] Successfully loaded from file: access")
+	}
+
 	overloadEnvByJsonFile(".json")
 
 	agent = &Agent{
@@ -70,7 +87,10 @@ func main() {
 		SALT:          os.Getenv("SALT"),
 	}
 
-	log.Println(agent)
+	log.Printf("[Token Loaded] access_token:\n%s", agent.access_token)
+	log.Printf("[Token Loaded] refresh_token:\n%s", agent.refresh_token)
+
+	log.Printf("[Init] Agent Config: tenent_id=%s, client_id=%s, scope=%s", agent.tenent_id, agent.client_id, agent.scope)
 	// printStructFields(*agent) // bug
 
 	// Deamon
@@ -141,9 +161,9 @@ func overloadToEnv(o *orderedmap.OrderedMap) {
 
 func overloadEnvByJsonFile(fn string) error {
 	if o, err := readJsonFromFile(fn); err == nil {
+		log.Printf("[Init] Overloading environment from JSON file: %s", fn)
 		overloadToEnv(o)
 	} else {
-		log.Println(err)
 		return err
 	}
 	return nil

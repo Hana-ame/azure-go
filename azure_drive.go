@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"log"
 
 	tools "github.com/Hana-ame/azure-go/Tools"
 	"github.com/Hana-ame/azure-go/Tools/debug"
@@ -72,9 +73,14 @@ func (agt *Agent) RenewToken() error {
 
 	// log.Println(result) // ok
 	// renew agent
+	oldAccessToken := agt.access_token
+	oldRefreshToken := agt.refresh_token
 	agt.access_token = result.GetOrDefault(`access_token`, agt.access_token).(string)
 	agt.refresh_token = result.GetOrDefault(`refresh_token`, agt.refresh_token).(string)
 	agt.expires_time = time.Now().Unix() + int64(result.GetOrDefault(`expires_in`, float64(agt.expires_time)).(float64))
+
+	log.Printf("[Token Renewed] access_token:\nOLD: %s\nNEW: %s", oldAccessToken, agt.access_token)
+	log.Printf("[Token Renewed] refresh_token:\nOLD: %s\nNEW: %s", oldRefreshToken, agt.refresh_token)
 
 	// save to file
 	godotenv.Write(map[string]string{"refresh_token": agt.refresh_token}, "refresh_token")
