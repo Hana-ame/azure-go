@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/Hana-ame/azure-go/Tools/debug"
@@ -60,35 +61,41 @@ func main() {
 	cwd, _ := os.Getwd()
 	log.Printf("[Init] Current Working Directory: %s", cwd)
 
-	if err := godotenv.Load("refresh_token"); err != nil {
-		log.Printf("[Init] Failed to load refresh_token file: %v", err)
+	if err := godotenv.Load("access_token"); err != nil {
+		log.Printf("[Init] Failed to load access_token file: %v", err)
 	} else {
-		log.Println("[Init] Successfully loaded from file: refresh_token")
+		log.Println("[Init] Successfully loaded from file: access_token")
 	}
 
-	if err := godotenv.Load("access"); err != nil {
-		log.Printf("[Init] Failed to load access file: %v", err)
+	secretBytes, err := os.ReadFile("client_secrets.txt")
+	if err != nil {
+		log.Printf("[Init] Failed to read client_secrets.txt: %v", err)
 	} else {
-		log.Println("[Init] Successfully loaded from file: access")
+		log.Println("[Init] Successfully loaded client_secrets.txt")
 	}
 
 	overloadEnvByJsonFile(".json")
+
+	var clientSecret string
+	if len(secretBytes) > 0 {
+		clientSecret = strings.TrimSpace(string(secretBytes))
+	}
 
 	agent = &Agent{
 		tenent_id:     os.Getenv("tenent_id"),
 		client_id:     os.Getenv("client_id"),
 		redirect_url:  os.Getenv("redirect_url"),
-		client_secret: os.Getenv("client_secret"),
+		client_secret: clientSecret,
 		scope:         os.Getenv("scope"),
 
-		access_token: os.Getenv("access_token"),
-		// expires_time
-		refresh_token: os.Getenv("refresh_token"),
+		access_token:  os.Getenv("access_token"),
+		refresh_token: "", // no longer used
 		SALT:          os.Getenv("SALT"),
+		user_id:       os.Getenv("user_id"),
 	}
 
-	log.Printf("[Token Loaded] access_token:\n%s", agent.access_token)
-	log.Printf("[Token Loaded] refresh_token:\n%s", agent.refresh_token)
+	log.Printf("[Token Loaded] access_token length: %d", len(agent.access_token))
+	log.Printf("[Init] client_secret set: %v, user_id=%s", agent.client_secret != "", agent.user_id)
 
 	log.Printf("[Init] Agent Config: tenent_id=%s, client_id=%s, scope=%s", agent.tenent_id, agent.client_id, agent.scope)
 	// printStructFields(*agent) // bug
@@ -123,11 +130,24 @@ func main() {
 	if err != nil {
 		log.Printf("WARN: hash store init failed, dedup disabled: %v", err)
 	}
-	s3 := NewS3Controller(NewAzureDriver(agent, hashStore))
+
+	pathStore, err := NewSQLitePathStore("paths.db")
+	if err != nil {
+		log.Printf("WARN: path store init failed: %v", err)
+	}
+
+	s3 := NewS3Controller(NewAzureDriver(agent, hashStore, pathStore))
 	r.PUT("/:bucket/*key", s3.PutObject)
 	r.GET("/:bucket/*key", s3.GetObject)
 	r.DELETE("/:bucket/*key", s3.DeleteObject)
 	r.HEAD("/:bucket/*key", s3.HeadObject)
+
+	// Dedicated bucket server on 127.26.7.10:8080
+	go func() {
+		if err := ListenBucket("127.26.7.10:8080", "mybucket", NewAzureDriver(agent, hashStore, pathStore), os.Getenv("S3_AUTH_TOKEN")); err != nil {
+			log.Printf("[BucketServer] failed: %v", err)
+		}
+	}()
 
 	addr := os.Getenv("LISTEN_ADDR")
 	if addr == "" {

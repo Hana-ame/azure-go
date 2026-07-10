@@ -24,3 +24,10 @@ type HashStore interface {
 	Lookup(md5hex string) (path string, err error)
 	Store(md5hex, path string) error
 }
+
+// PathStore maps S3 paths to backend resource IDs.
+type PathStore interface {
+	Lookup(path string) (id string, err error)
+	Store(path, id string) error
+	Delete(path string) error
+}

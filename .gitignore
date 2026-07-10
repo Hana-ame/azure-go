@@ -14,3 +14,6 @@ azure
 azure-go
 
 __debug_*
+client_secrets.txt
+access
+temp

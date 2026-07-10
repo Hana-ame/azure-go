@@ -95,7 +95,7 @@ func TestRenew(t *testing.T) {
 
 func TestUpload(t *testing.T) {
 	skipIfNoCreds(t)
-	godotenv.Load("access")
+	godotenv.Load("access_token")
 	agent := Agent{
 		tenent_id:     os.Getenv("tenent_id"),
 		client_id:     os.Getenv("client_id"),
@@ -119,7 +119,7 @@ func TestGet(t *testing.T) {
 	id := "01LLWEUU3FBIELXXTESJBJLXTICCTSLP7S"
 	id = "01LLWEUUYYXMU2N4A4A5G3MYUDWS6IQSDW"
 
-	godotenv.Load("access")
+	godotenv.Load("access_token")
 	agent := Agent{
 		tenent_id:     os.Getenv("tenent_id"),
 		client_id:     os.Getenv("client_id"),
@@ -140,7 +140,7 @@ func TestDelete(t *testing.T) {
 	skipIfNoCreds(t)
 	id := "01LLWEUU3FBIELXXTESJBJLXTICCTSLP7S"
 
-	godotenv.Load("access")
+	godotenv.Load("access_token")
 	agent := Agent{
 		tenent_id:     os.Getenv("tenent_id"),
 		client_id:     os.Getenv("client_id"),
@@ -278,14 +278,14 @@ func TestSaveRefreshToken(t *testing.T) {
 func TestRenewTokenPersistence(t *testing.T) {
 	skipIfNoCreds(t)
 
-	origAccess := readFileIfExists("access")
+	origAccess := readFileIfExists("access_token")
 	origRefresh := readFileIfExists("refresh_token")
 
 	defer func() {
 		if origAccess != "" {
-			os.WriteFile("access", []byte(origAccess), 0644)
+			os.WriteFile("access_token", []byte(origAccess), 0644)
 		} else {
-			os.Remove("access")
+			os.Remove("access_token")
 		}
 		if origRefresh != "" {
 			os.WriteFile("refresh_token", []byte(origRefresh), 0644)
@@ -310,7 +310,7 @@ func TestRenewTokenPersistence(t *testing.T) {
 	}
 
 	// Verify access file content
-	data, err := os.ReadFile("access")
+	data, err := os.ReadFile("access_token")
 	if err != nil {
 		t.Fatal("access file not created after refresh")
 	}

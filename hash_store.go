@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"os"
 
 	_ "github.com/glebarez/go-sqlite"
 )
@@ -14,21 +13,14 @@ type SQLiteHashStore struct {
 }
 
 func NewSQLiteHashStore(dbPath string) (*SQLiteHashStore, error) {
-	initDB := false
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		initDB = true
-	}
-
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open hash db: %w", err)
 	}
 
-	if initDB {
-		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS hashes (md5 TEXT PRIMARY KEY, path TEXT NOT NULL)`)
-		if err != nil {
-			return nil, fmt.Errorf("create hashes table: %w", err)
-		}
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS hashes (md5 TEXT PRIMARY KEY, path TEXT NOT NULL)`)
+	if err != nil {
+		return nil, fmt.Errorf("create hashes table: %w", err)
 	}
 
 	return &SQLiteHashStore{db: db}, nil
@@ -45,5 +37,43 @@ func (s *SQLiteHashStore) Lookup(md5hex string) (string, error) {
 
 func (s *SQLiteHashStore) Store(md5hex, path string) error {
 	_, err := s.db.Exec(`INSERT OR IGNORE INTO hashes (md5, path) VALUES (?, ?)`, md5hex, path)
+	return err
+}
+
+// SQLitePathStore implements storage.PathStore using SQLite.
+type SQLitePathStore struct {
+	db *sql.DB
+}
+
+func NewSQLitePathStore(dbPath string) (*SQLitePathStore, error) {
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open path db: %w", err)
+	}
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS paths (path TEXT PRIMARY KEY, id TEXT NOT NULL)`)
+	if err != nil {
+		return nil, fmt.Errorf("create paths table: %w", err)
+	}
+
+	return &SQLitePathStore{db: db}, nil
+}
+
+func (s *SQLitePathStore) Lookup(path string) (string, error) {
+	var id string
+	err := s.db.QueryRow(`SELECT id FROM paths WHERE path = ?`, path).Scan(&id)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return id, err
+}
+
+func (s *SQLitePathStore) Store(path, id string) error {
+	_, err := s.db.Exec(`INSERT OR REPLACE INTO paths (path, id) VALUES (?, ?)`, path, id)
+	return err
+}
+
+func (s *SQLitePathStore) Delete(path string) error {
+	_, err := s.db.Exec(`DELETE FROM paths WHERE path = ?`, path)
 	return err
 }

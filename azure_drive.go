@@ -1,21 +1,32 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
-	"os"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 	"log"
 
-	tools "github.com/Hana-ame/azure-go/Tools"
 	"github.com/Hana-ame/azure-go/Tools/debug"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/myfetch"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
+
+const graphRoot = "https://graph.microsoft.com/v1.0"
+
+type tokenResponse struct {
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	ExtExpiresIn int    `json:"ext_expires_in"`
+	AccessToken  string `json:"access_token"`
+}
 
 // 作为使用api的代理
 type Agent struct {
@@ -29,7 +40,12 @@ type Agent struct {
 	access_token  string
 	refresh_token string
 
-	SALT string
+	SALT    string
+	user_id string
+}
+
+func (agt *Agent) driveRoot() string {
+	return graphRoot + "/users/" + agt.user_id + "/drive"
 }
 
 // 方法
@@ -39,55 +55,59 @@ type Agent struct {
 /// TODO：如何获取Token, 因为忘记了, 似乎要上blade去重新弄。两年一次。下次需要做好笔记。
 /// 记得原来的笔记是在旧电脑上
 
-// renew the token
-// save the newest `refresh_token` to `./refresh_token`
 func (agt *Agent) RenewToken() error {
 	endpoint := `https://login.microsoftonline.com/` + agt.tenent_id + `/oauth2/v2.0/token`
 
-	body, _ := myfetch.URLEncodedFormReader(map[string]string{
-		"client_id":     agt.client_id,
-		"refresh_token": agt.refresh_token,
-		"grant_type":    "refresh_token",
-		"scope":         os.Getenv("SCOPE"),
-	})
+	form := url.Values{}
+	form.Set("grant_type", "client_credentials")
+	form.Set("client_id", agt.client_id)
+	form.Set("client_secret", agt.client_secret)
+	form.Set("scope", "https://graph.microsoft.com/.default")
+
+	log.Printf("[TokenRefresh] endpoint: %s", endpoint)
+	log.Printf("[TokenRefresh] using client_credentials, client_id=%s", agt.client_id)
+
+	body := strings.NewReader(form.Encode())
 	resp, err := myfetch.Fetch(
 		http.MethodPost,
 		endpoint,
 		map[string]string{
 			"Content-Type": "application/x-www-form-urlencoded",
-			"Origin":       os.Getenv("origin"),
 		},
 		body,
 	)
 	if err != nil {
+		log.Printf("[TokenRefresh] HTTP request failed: %v", err)
+		return err
+	}
+	log.Printf("[TokenRefresh] HTTP status: %d", resp.StatusCode)
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	log.Printf("[TokenRefresh] Raw response body: %s", string(bodyBytes))
+
+	var tr tokenResponse
+	if err := json.Unmarshal(bodyBytes, &tr); err != nil {
+		log.Printf("[TokenRefresh] JSON decode failed: %v", err)
 		return err
 	}
 
-	result, err := myfetch.ResponseToJson(resp)
-	if err != nil {
-		return err
-	}
-	// ************************
-	// 抓到数据之后从里面提取出来,为了测试需要把现有的client_id云云从cloudflare上面抓下来
-	// ************************
+	log.Printf("[TokenRefresh] access_token length: %d, expires_in: %d", len(tr.AccessToken), tr.ExpiresIn)
 
-	// log.Println(result) // ok
-	// renew agent
+	if tr.AccessToken == "" {
+		log.Printf("[TokenRefresh] WARN: access_token empty in response")
+		return fmt.Errorf("empty access_token in response")
+	}
+
 	oldAccessToken := agt.access_token
-	oldRefreshToken := agt.refresh_token
-	agt.access_token = result.GetOrDefault(`access_token`, agt.access_token).(string)
-	agt.refresh_token = result.GetOrDefault(`refresh_token`, agt.refresh_token).(string)
-	agt.expires_time = time.Now().Unix() + int64(result.GetOrDefault(`expires_in`, float64(agt.expires_time)).(float64))
+	agt.access_token = tr.AccessToken
+	agt.expires_time = time.Now().Unix() + int64(tr.ExpiresIn)
 
-	log.Printf("[Token Renewed] access_token:\nOLD: %s\nNEW: %s", oldAccessToken, agt.access_token)
-	log.Printf("[Token Renewed] refresh_token:\nOLD: %s\nNEW: %s", oldRefreshToken, agt.refresh_token)
+	log.Printf("[TokenRefresh] access_token changed: length old=%d new=%d", len(oldAccessToken), len(agt.access_token))
+	log.Printf("[TokenRefresh] new expires_time: %d (unix), expires_in: %d minutes",
+		agt.expires_time, (agt.expires_time-time.Now().Unix())/60)
 
-	// save to file
-	godotenv.Write(map[string]string{"refresh_token": agt.refresh_token}, "refresh_token")
-	godotenv.Write(map[string]string{"access_token": agt.access_token}, "access")
-
-	tools.WriteJSONToFile("last_result.json", result)
-
+	godotenv.Write(map[string]string{"access_token": agt.access_token}, "access_token")
 	return nil
 }
 
@@ -97,7 +117,7 @@ func (agt *Agent) RenewToken() error {
 // find what need in (Object).id
 func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*orderedmap.OrderedMap, error) {
 	// save img to `<timestamp>-<randomString>`
-	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/img/` +
+	endpoint := agt.driveRoot() + `/root:/img/` +
 		strconv.Itoa(int(time.Now().Unix())) + `-` +
 		uuid.New().String()[:8] + contentTypeToExtend(ContentType) + `:/content`
 
@@ -127,7 +147,7 @@ func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*or
 // TODO: add cache for deleted pictures.
 // get picture body reader
 func (agt *Agent) Get(id, fn string) (file io.ReadCloser, contentLength int64, contentType string, err error) {
-	endpoint := `https://graph.microsoft.com/v1.0/me/drive/items/` + id + `/content`
+	endpoint := agt.driveRoot() + `/items/` + id + `/content`
 
 	resp, err := myfetch.Fetch(
 		http.MethodGet,
@@ -150,7 +170,7 @@ func (agt *Agent) Get(id, fn string) (file io.ReadCloser, contentLength int64, c
 
 // delete picture
 func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
-	endpoint := `https://graph.microsoft.com/v1.0/me/drive/items/` + id
+	endpoint := agt.driveRoot() + `/items/` + id
 
 	resp, err := myfetch.Fetch(
 		http.MethodDelete,
@@ -176,7 +196,7 @@ func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 }
 
 func (agt *Agent) CreateUploadSession(ContentType string, body io.Reader) (*orderedmap.OrderedMap, error) {
-	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/large/` +
+	endpoint := agt.driveRoot() + `/root:/large/` +
 		strconv.Itoa(int(time.Now().Unix())) + `-` +
 		uuid.New().String()[:8] + contentTypeToExtend(ContentType) + `:/createUploadSession`
 
@@ -240,7 +260,7 @@ func pickSurfix(arr []string, keys []string) string {
 // --- StorageDriver interface implementation ---
 
 func (agt *Agent) Put(path, contentType string, body io.Reader) (string, error) {
-	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/` + path + `:/content`
+	endpoint := agt.driveRoot() + `/root:/` + path + `:/content`
 
 	resp, err := myfetch.Fetch(
 		http.MethodPut,
@@ -263,7 +283,7 @@ func (agt *Agent) Put(path, contentType string, body io.Reader) (string, error) 
 }
 
 func (agt *Agent) GetByPath(path string) (io.ReadCloser, int64, string, error) {
-	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/` + path + `:/content`
+	endpoint := agt.driveRoot() + `/root:/` + path + `:/content`
 
 	resp, err := myfetch.Fetch(
 		http.MethodGet,
@@ -280,7 +300,7 @@ func (agt *Agent) GetByPath(path string) (io.ReadCloser, int64, string, error) {
 }
 
 func (agt *Agent) DeleteByPath(path string) error {
-	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/` + path
+	endpoint := agt.driveRoot() + `/root:/` + path
 
 	_, err := myfetch.Fetch(
 		http.MethodDelete,
@@ -293,8 +313,27 @@ func (agt *Agent) DeleteByPath(path string) error {
 	return err
 }
 
+// head picture by ID
+func (agt *Agent) HeadByID(id string) (contentLength int64, contentType string, err error) {
+	endpoint := agt.driveRoot() + `/items/` + id + `/content`
+
+	resp, err := myfetch.Fetch(
+		http.MethodHead,
+		endpoint,
+		map[string]string{
+			"Authorization": "Bearer " + agt.access_token,
+		},
+		nil,
+	)
+	if err != nil {
+		return 0, "", err
+	}
+	return resp.ContentLength, resp.Header.Get("Content-Type"), nil
+}
+
 func (agt *Agent) HeadByPath(path string) (int64, string, error) {
-	endpoint := `https://graph.microsoft.com/v1.0/me/drive/root:/` + path + `:/content`
+
+	endpoint := agt.driveRoot() + `/root:/` + path + `:/content`
 
 	resp, err := myfetch.Fetch(
 		http.MethodHead,

@@ -15,9 +15,9 @@ DST=${envVars['HOST']}
 echo "$DST"
 
 # # 设置环境变量
-# export GOOS=linux
-# export GOARCH=amd64
-# export CGO_ENABLED=0
+export GOOS=linux
+export GOARCH=amd64
+export CGO_ENABLED=0
 
 # 编译 Go 程序
 go build -o azure .
