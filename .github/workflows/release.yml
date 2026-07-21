@@ -24,13 +24,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.5' # 指定你的 Go 版本
-          cache: true # 开启缓存，加快后续构建速度
-
-      - name: Install dependencies
-        run: |
-          # 确保拉取所有依赖
-          go mod tidy
+          go-version: '1.25.5'
+          cache: true
 
       - name: Build
         env:
@@ -44,8 +39,7 @@ jobs:
             BINARY_NAME="${BINARY_NAME}.exe"
           fi
           
-          # 执行编译
-          go build -v -o "$BINARY_NAME" .
+          go build -v -ldflags="-s -w" -o "$BINARY_NAME" .
           
           # 存储文件名供后续步骤使用
           echo "BINARY_NAME=$BINARY_NAME" >> $GITHUB_ENV
