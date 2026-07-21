@@ -25,7 +25,7 @@
 | Backend | Driver | Env Vars | Purpose |
 |---------|--------|----------|---------|
 | **OneDrive** | `Agent` (azure_drive.go) | tenent_id, client_id, ..., access_token | Legacy read/delete via Graph API |
-| **Cloudflare R2** | `r2.Driver` (storage/r2/) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | Default upload destination |
+| **Cloudflare R2** | `r2.Driver` (storage/r2/) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | Default upload destination (bucket: `r2-moonchan`, public: `r2.moonchan.xyz`) |
 | **Local filesystem** | `localfs.Driver` (storage/local/) | `LOCAL_STORAGE_PATH` (default `.`), `LOCAL_PUBLIC_URL` | `?dest=local` uploads |
 
 ### API Routes
@@ -90,14 +90,17 @@
 5. **Token persistence**: only `access_token` file needed; `refresh_token` file no longer used
 
 ### Recent Changes
+- R2 bucket switched from `oss-moonchan-xyz` → `r2-moonchan`, public URL → `r2.moonchan.xyz`
+- Frontend `index.html` reads `?dest` from URL query and passes to API
+- `AZURE_DISABLE=true` local dev flag (skips token renewal, OneDrive handlers return 503)
 - `?dest=local` support for `/api/upload` and S3 routes
 - Added `storage/local/local.go` — filesystem StorageDriver
 - Added `GET /local/*path` for local file serving/deletion
 - S3 controller supports `?dest=local` to use local driver
 - nginx: single `location /` proxy_pass for all routes (VPS + cloudcone)
 - Upload script (`upload.py`) uses `data.url` from response
+- 1s sleep delay added to RenewToken failure loop
 - Version bumped to v26.07.22
 
 ### Next Steps (suggested)
 - [ ] Set up systemd service for auto-restart
-- [ ] Add retry delay in RenewToken failure loop
