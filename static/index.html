@@ -236,6 +236,8 @@
     };
     
     const ENDPOINT = document.location.origin;
+    const DEST = new URLSearchParams(location.search).get('dest') || '';
+    const DEST_QUERY = DEST ? '?dest=' + DEST : '';
 
     document.addEventListener('DOMContentLoaded', () => {
       const body = document.body;
@@ -363,7 +365,7 @@
 
         const formData = new FormData();
         formData.append('file', fileToUpload);
-        fetch(ENDPOINT + `/api/upload`, {
+        fetch(ENDPOINT + `/api/upload${DEST_QUERY}`, {
           method: 'POST',
           body: formData,
         })
