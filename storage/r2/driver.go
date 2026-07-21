@@ -33,7 +33,8 @@ func (d *Driver) Put(path, contentType string, body io.Reader) (*storage.PutResu
 	tee := io.TeeReader(body, hash)
 
 	_, err := d.client.PutObject(context.Background(), d.bucket, fullPath, tee, -1, minio.PutObjectOptions{
-		ContentType: contentType,
+		ContentType:        contentType,
+		ContentDisposition: "inline",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("r2 put: %w", err)

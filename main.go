@@ -192,6 +192,14 @@ func main() {
 		data, _ := embeddedStatic.ReadFile("static/sw.js")
 		c.Data(http.StatusOK, "application/javascript", data)
 	})
+	r.GET("/manifest.json", func(c *gin.Context) {
+		data, _ := embeddedStatic.ReadFile("static/manifest.json")
+		c.Data(http.StatusOK, "application/json", data)
+	})
+	r.GET("/favicon.ico", func(c *gin.Context) {
+		data, _ := embeddedStatic.ReadFile("static/favicon.ico")
+		c.Data(http.StatusOK, "image/x-icon", data)
+	})
 
 	// S3-compatible API
 	hashStore, err := NewSQLiteHashStore("hashes.db")

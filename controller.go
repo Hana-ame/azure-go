@@ -28,29 +28,39 @@ var azureDisabled bool
 //go:embed static/*
 var embeddedStatic embed.FS
 
+func requestBaseURL(c *gin.Context) string {
+	host := c.Request.Host
+	scheme := "http"
+	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	} else if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + host
+}
+
 func uploadResp(c *gin.Context, path string, dest string) {
 	h := hash(path)
 	o := orderedmap.New()
 	o.Set("id", h)
 	o.Set("path", "/"+path)
 
-	var baseURL, deleteBase string
+	reqBase := requestBaseURL(c)
+
 	if dest == "local" {
-		baseURL = os.Getenv("LOCAL_PUBLIC_URL")
-		if baseURL == "" {
-			baseURL = "https://upload.moonchan.xyz"
+		publicURL := os.Getenv("LOCAL_PUBLIC_URL")
+		if publicURL == "" {
+			publicURL = reqBase
 		}
-		deleteBase = baseURL
-		o.Set("url", baseURL+"/local/"+path)
-		o.Set("delete_url", deleteBase+"/local/"+path+"?delete="+h)
+		o.Set("url", publicURL+"/local/"+path)
+		o.Set("delete_url", reqBase+"/local/"+path+"?delete="+h)
 	} else {
-		baseURL = os.Getenv("R2_PUBLIC_URL")
-		if baseURL == "" {
-			baseURL = "https://r2.moonchan.xyz"
+		publicURL := os.Getenv("R2_PUBLIC_URL")
+		if publicURL == "" {
+			publicURL = reqBase
 		}
-		deleteBase = "https://upload.moonchan.xyz"
-		o.Set("url", baseURL+"/"+path)
-		o.Set("delete_url", deleteBase+"/r2/"+path+"?delete="+h)
+		o.Set("url", publicURL+"/"+path)
+		o.Set("delete_url", reqBase+"/r2/"+path+"?delete="+h)
 	}
 	c.JSON(http.StatusOK, o)
 }

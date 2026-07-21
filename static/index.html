@@ -236,7 +236,8 @@
     };
     
     const ENDPOINT = document.location.origin;
-    const DEST = new URLSearchParams(location.search).get('dest') || '';
+    const isLocalDev = ['localhost', '127.0.0.1', '[::1]', '0.0.0.0'].includes(location.hostname);
+    const DEST = new URLSearchParams(location.search).get('dest') || (isLocalDev ? 'local' : '');
     const DEST_QUERY = DEST ? '?dest=' + DEST : '';
 
     document.addEventListener('DOMContentLoaded', () => {

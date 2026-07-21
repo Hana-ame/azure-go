@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"mime"
 	"os"
 	"path/filepath"
 
@@ -65,7 +66,10 @@ func (d *Driver) Get(path string) (io.ReadCloser, int64, string, error) {
 		return nil, 0, "", err
 	}
 
-	contentType := "application/octet-stream"
+	contentType := mime.TypeByExtension(filepath.Ext(path))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
 	return f, info.Size(), contentType, nil
 }
 
@@ -86,5 +90,9 @@ func (d *Driver) Head(path string) (int64, string, error) {
 		}
 		return 0, "", err
 	}
-	return info.Size(), "application/octet-stream", nil
+	contentType := mime.TypeByExtension(filepath.Ext(path))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	return info.Size(), contentType, nil
 }
