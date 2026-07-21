@@ -166,10 +166,8 @@
 
 <body>
 			<script>
-				// 必须注册 Service Worker 才能触发安装
 				if ('serviceWorker' in navigator) {
-									navigator.serviceWorker.register('/sw.js'); // 确保这个 sw.js 文件存在
-									  });
+					navigator.serviceWorker.register('/sw.js');
 				}
 			</script>
   <div id="upload-area">
