@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>图片上传 (w/ AVIF/WEBP)</title>
+  <link rel="manifest" href="/manifest.json">
+  <style type="text/css">
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f4f4f9;
+      margin: 0;
+      padding: 24px;
+      height: 100vh;
+      box-sizing: border-box;
+      transition: background-color 0.3s ease;
+    }
+
+    body.drag-over {
+      background-color: #d0d0d0;
+    }
+
+    #upload-area {
+      margin-bottom: 24px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .upload-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .compression-group {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .file-label {
+      font-weight: bold;
+    }
+
+    .compress-option {
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+        color: #333;
+        cursor: pointer;
+        background: #eef2f5;
+        padding: 6px 12px;
+        border-radius: 4px;
+    }
+    .compress-option input {
+        margin-right: 8px;
+        cursor: pointer;
+    }
+
+    /* === NEW: Style for the copy button === */
+    #copy-all-button {
+        padding: 8px 16px;
+        font-size: 14px;
+        border: none;
+        border-radius: 4px;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    #copy-all-button:hover {
+        background-color: #0056b3;
+    }
+    #copy-all-button:active {
+        background-color: #004085;
+    }
+
+
+    .tips-link {
+      color: #007bff;
+      text-decoration: none;
+      font-size: 14px;
+      display: inline-block;
+      margin-top: 8px;
+    }
+
+    .tips-link:hover {
+      text-decoration: underline;
+    }
+
+    #items-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .item {
+      display: flex;
+      align-items: center;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      padding: 16px;
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+
+    .item img {
+      width: 150px;
+      height: 150px;
+      object-fit: contain;
+      margin-right: 24px;
+      border-radius: 4px;
+      background-color: #eee;
+    }
+
+    .item .info-wrapper {
+      flex-grow: 1;
+    }
+
+    .item .info-group {
+      margin-bottom: 12px;
+    }
+
+    .item .info-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .item label {
+      display: block;
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    .item .status-info {
+        font-weight: normal; 
+        color: #007bff;
+        font-size: 12px;
+        margin-left: 8px;
+    }
+    .item .status-info.warning {
+        color: #ffa000;
+    }
+
+    .item input[type="text"] {
+      padding: 8px;
+      width: 100%;
+      max-width: 600px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      font-size: 14px;
+      transition: background-color 0.3s;
+    }
+
+    .status-text {
+        color: #666;
+        font-style: italic;
+    }
+  </style>
+</head>
+
+<body>
+			<script>
+				// 必须注册 Service Worker 才能触发安装
+				if ('serviceWorker' in navigator) {
+									navigator.serviceWorker.register('/sw.js'); // 确保这个 sw.js 文件存在
+									  });
+				}
+			</script>
+  <div id="upload-area">
+    <div class="upload-controls">
+      <div>
+        <label for="file-input" class="file-label">选择图片 (支持拖拽/Ctrl+V):</label>
+        <input type="file" id="file-input" name="img" accept="image/*" multiple />
+      </div>
+
+      <div class="compression-group" title="使用高性能 WASM 库进行图片压缩。仅当转换后体积变小时才会生效。">
+        <label class="compress-option">
+          <input type="radio" name="compression-type" value="avif">
+          <span> AVIF</span>
+        </label>
+        <label class="compress-option">
+          <input type="radio" name="compression-type" value="webp" checked>
+          <span> WEBP</span>
+        </label>
+        <label class="compress-option">
+          <input type="radio" name="compression-type" value="none">
+          <span>不压缩</span>
+        </label>
+        <input placeholder="召唤键盘" />
+      </div>
+
+      <!-- === ADDED: "Copy All Links" button === -->
+      <button id="copy-all-button">复制所有链接</button>
+    </div>
+
+    <a href="https://bulletin.moonchan.xyz/article/7379e0f05fe57054baafdae15a73c966acdfa473"
+      target="_blank" class="tips-link">如果你真没用过图床，点这</a>
+  </div>
+
+  <div id="items-container"></div>
+
+  <template id="item-template">
+    <div class="item">
+      <img src="" alt="预览图片">
+      <div class="info-wrapper">
+        <div class="info-group">
+          <label>图片链接 <span class="status-info"></span></label>
+          <input type="text" class="url-link status-text" value="准备中...">
+        </div>
+        <div class="info-group">
+          <label>删除链接</label>
+          <input type="text" class="del-link status-text" value="准备中...">
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script type="module">
+    // 从 CDN 导入 AVIF 和 WEBP 编码器
+    import { encode as avifEncode } from 'https://esm.sh/@jsquash/avif';
+    import { encode as webpEncode } from 'https://esm.sh/@jsquash/webp';
+    
+    // 编码器配置
+    const AVIF_ENCODE_OPTIONS = {
+      cqLevel: 30,
+      speed: 7,
+    };
+    const WEBP_ENCODE_OPTIONS = {
+      quality: 75,
+    };
+    
+    const ENDPOINT = document.location.origin;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const body = document.body;
+      const fileInput = document.getElementById('file-input');
+      const itemsContainer = document.getElementById('items-container');
+      const itemTemplate = document.getElementById('item-template');
+      // === NEW: Get reference to the copy button ===
+      const copyAllButton = document.getElementById('copy-all-button');
+
+      const processFiles = (files) => {
+        if (files.length === 0) return;
+        for (const file of files) {
+          uploadFile(file);
+        }
+        fileInput.value = ''; 
+      };
+
+      /**
+       * 使用 @jsquash/avif 库将图片文件压缩为 AVIF
+       * @param {ImageData} imageData - 原始像素数据
+       * @returns {Promise<ArrayBuffer>} - 编码后的 AVIF 数据
+       */
+      const compressToAvif = async (imageData) => {
+        return await avifEncode(imageData, AVIF_ENCODE_OPTIONS);
+      };
+
+      /**
+       * 使用 @jsquash/webp 库将图片文件压缩为 WEBP
+       * @param {ImageData} imageData - 原始像素数据
+       * @returns {Promise<ArrayBuffer>} - 编码后的 WEBP 数据
+       */
+      const compressToWebp = async (imageData) => {
+        return await webpEncode(imageData, WEBP_ENCODE_OPTIONS);
+      };
+
+      const formatBytes = (bytes) => {
+          if (bytes === 0) return '0 Bytes';
+          const k = 1024;
+          const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+      };
+
+      const uploadFile = async (originalFile) => {
+        const itemFragment = itemTemplate.content.cloneNode(true);
+        const itemElement = itemFragment.querySelector('.item');
+        const imgElement = itemElement.querySelector('img');
+        const urlLink = itemElement.querySelector('.url-link');
+        const delLink = itemElement.querySelector('.del-link');
+        const statusInfoSpan = itemElement.querySelector('.status-info');
+
+        const initialPreviewUrl = URL.createObjectURL(originalFile);
+        imgElement.src = initialPreviewUrl;
+        imgElement.alt = originalFile.name;
+        statusInfoSpan.textContent = `原图: ${formatBytes(originalFile.size)}`;
+        itemsContainer.prepend(itemElement);
+
+        let fileToUpload = originalFile;
+        const selectedCompression = document.querySelector('input[name="compression-type"]:checked').value;
+        const shouldCompress = selectedCompression !== 'none' && originalFile.type.startsWith('image/');
+
+        if (shouldCompress && originalFile.type === 'image/gif') {
+            statusInfoSpan.textContent = `跳过 GIF 图像（暂不支持压缩） (${formatBytes(originalFile.size)})`;
+        } else if (shouldCompress && (
+          (selectedCompression === 'avif' && originalFile.type === 'image/avif') ||
+          (selectedCompression === 'webp' && originalFile.type === 'image/webp')
+        )) {
+            statusInfoSpan.textContent = `无需处理 (${originalFile.type.split('/')[1].toUpperCase()}) (${formatBytes(originalFile.size)})`;
+        } else if (shouldCompress) {
+            try {
+                const formatName = selectedCompression.toUpperCase();
+                urlLink.value = `压缩中 (${formatName} WASM)...`;
+                delLink.value = '请稍候...';
+
+                const imageBitmap = await createImageBitmap(originalFile);
+                const canvas = document.createElement('canvas');
+                canvas.width = imageBitmap.width;
+                canvas.height = imageBitmap.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(imageBitmap, 0, 0);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                let compressedBuffer;
+                let compressedMimeType;
+                let newExtension;
+
+                if (selectedCompression === 'avif') {
+                    compressedBuffer = await compressToAvif(imageData);
+                    compressedMimeType = 'image/avif';
+                    newExtension = '.avif';
+                } else { // webp
+                    compressedBuffer = await compressToWebp(imageData);
+                    compressedMimeType = 'image/webp';
+                    newExtension = '.webp';
+                }
+
+                const nameWithoutExt = originalFile.name.replace(/\.[^/.]+$/, "");
+                const newName = `${nameWithoutExt}${newExtension}`;
+                const compressedFile = new File([new Blob([compressedBuffer], { type: compressedMimeType })], newName, { type: compressedMimeType });
+                
+                if (compressedFile.size < originalFile.size) {
+                    fileToUpload = compressedFile;
+                    URL.revokeObjectURL(initialPreviewUrl);
+                    imgElement.src = URL.createObjectURL(fileToUpload);
+                    const savedPercent = ((1 - fileToUpload.size / originalFile.size) * 100).toFixed(0);
+                    statusInfoSpan.textContent = `${formatName} 压缩成功! 体积减小 ${savedPercent}% (${formatBytes(fileToUpload.size)})`;
+                } else {
+                    statusInfoSpan.textContent = `原图更优，无需压缩 (${formatBytes(originalFile.size)})`;
+                    statusInfoSpan.classList.add('warning');
+                }
+            } catch (error) {
+                console.error("压缩失败:", error);
+                statusInfoSpan.textContent = `压缩失败, 将上传原图`;
+                statusInfoSpan.classList.add('warning');
+            }
+        } else if (selectedCompression !== 'none') {
+            statusInfoSpan.textContent = `跳过非图片文件 (${formatBytes(originalFile.size)})`;
+        }
+
+        // --- Upload Stage ---
+        urlLink.value = '上传中...';
+        delLink.value = '上传中...';
+        urlLink.classList.remove('status-text');
+        delLink.classList.remove('status-text');
+
+        const formData = new FormData();
+        formData.append('file', fileToUpload);
+        fetch(ENDPOINT + `/api/upload`, {
+          method: 'POST',
+          body: formData,
+        })
+        .then(response => {
+            if (!response.ok) throw new Error(`服务器错误: ${response.statusText}`);
+            return response.json();
+        })
+        .then(data => {
+            const fileUrl = data.url;
+            const deleteUrl = data.delete_url;
+            
+            urlLink.value = fileUrl;
+            delLink.value = deleteUrl;
+            urlLink.style.backgroundColor = '#e8f5e9';
+            urlLink.select();
+        })
+        .catch(error => {
+            console.error('上传失败:', error);
+            urlLink.value = `上传失败: ${error.message}`;
+            delLink.value = 'N/A';
+            itemElement.style.backgroundColor = '#ffebee';
+            urlLink.classList.add('status-text');
+        });
+      };
+      
+      // === NEW: Functionality for the "Copy All" button ===
+      const handleCopyAll = () => {
+        const urlInputs = document.querySelectorAll('.item .url-link');
+        const urlsToCopy = [];
+
+        urlInputs.forEach(input => {
+          // 只复制有效的、以上传端点开头的链接
+          if (input.value.startsWith(ENDPOINT)) {
+            urlsToCopy.push(input.value);
+          }
+        });
+
+        if (urlsToCopy.length > 0) {
+          const textToCopy = urlsToCopy.join('\n');
+          navigator.clipboard.writeText(textToCopy)
+            .then(() => {
+              const originalText = copyAllButton.textContent;
+              copyAllButton.textContent = '已复制！';
+              setTimeout(() => {
+                copyAllButton.textContent = originalText;
+              }, 2000);
+            })
+            .catch(err => {
+              console.error('复制失败: ', err);
+              alert('复制失败！');
+            });
+        } else {
+          alert('没有可复制的链接。');
+        }
+      };
+
+
+      // --- Event Listeners ---
+      fileInput.addEventListener('change', (event) => processFiles(event.target.files), false);
+      document.addEventListener('paste', (event) => event.clipboardData && event.clipboardData.files.length > 0 && (event.preventDefault(), processFiles(event.clipboardData.files)));
+      body.addEventListener('dragenter', (event) => { event.preventDefault(); event.stopPropagation(); body.classList.add('drag-over'); });
+      body.addEventListener('dragover', (event) => { event.preventDefault(); event.stopPropagation(); });
+      body.addEventListener('dragleave', (event) => { event.preventDefault(); event.stopPropagation(); body.classList.remove('drag-over'); });
+      body.addEventListener('drop', (event) => { event.preventDefault(); event.stopPropagation(); body.classList.remove('drag-over'); processFiles(event.dataTransfer.files); });
+      itemsContainer.addEventListener('click', (event) => { if (event.target.tagName === 'INPUT' && event.target.type === 'text') event.target.select(); });
+      itemsContainer.addEventListener('mouseover', (event) => { if (event.target.tagName === 'INPUT' && event.target.type === 'text') event.target.select(); });
+      // === NEW: Added event listener for the copy button ===
+      copyAllButton.addEventListener('click', handleCopyAll);
+    });
+  </script>
+
+</body>
+</html>

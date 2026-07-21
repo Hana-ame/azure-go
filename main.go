@@ -16,15 +16,21 @@ import (
 	"github.com/Hana-ame/azure-go/Tools/myiter"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/myfetch"
+	localfs "github.com/Hana-ame/azure-go/storage/local"
+	"github.com/Hana-ame/azure-go/storage/r2"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // global
 var agent *Agent
+var r2Driver *r2.Driver
+var r2PublicURL string
 
-const Version = "v26.07.10"
+const Version = "v26.07.22"
 
 func main_with_redirect() {
 
@@ -100,6 +106,40 @@ func main() {
 	log.Printf("[Init] Agent Config: tenent_id=%s, client_id=%s, scope=%s", agent.tenent_id, agent.client_id, agent.scope)
 	// printStructFields(*agent) // bug
 
+	r2AccountID := os.Getenv("R2_ACCOUNT_ID")
+	r2AccessKey := os.Getenv("R2_ACCESS_KEY_ID")
+	r2SecretKey := os.Getenv("R2_SECRET_ACCESS_KEY")
+	r2Bucket := os.Getenv("R2_BUCKET_NAME")
+	r2PublicURL = os.Getenv("R2_PUBLIC_URL")
+
+	if r2AccountID != "" && r2AccessKey != "" && r2SecretKey != "" && r2Bucket != "" {
+		r2Endpoint := r2AccountID + ".r2.cloudflarestorage.com"
+		r2Client, err := minio.New(r2Endpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(r2AccessKey, r2SecretKey, ""),
+			Secure: true,
+		})
+		if err != nil {
+			log.Printf("[Init] Failed to create R2 client: %v", err)
+		} else {
+			r2Driver = r2.New(r2Client, r2Bucket, "")
+			log.Printf("[Init] R2 driver initialized: bucket=%s, endpoint=%s", r2Bucket, r2Endpoint)
+		}
+	} else {
+		log.Printf("[Init] R2 env vars incomplete, R2 driver disabled")
+	}
+
+	localStoragePath := os.Getenv("LOCAL_STORAGE_PATH")
+	if localStoragePath == "" {
+		localStoragePath = "."
+	}
+	localDrv, err := localfs.New(localStoragePath)
+	if err != nil {
+		log.Printf("[Init] Failed to create local driver: %v", err)
+	} else {
+		localDriver = localDrv
+		log.Printf("[Init] Local driver initialized: root=%s", localStoragePath)
+	}
+
 	// Deamon
 	go func() {
 		for {
@@ -120,10 +160,31 @@ func main() {
 
 	// Original API
 	r.PUT("/api/upload", Upload)
+	r.PUT("/api/upload/*fn", Upload)
 	r.POST("/api/upload", CreateUploadSession)
 	r.GET("/api/:id/*fn", Get)
 	r.DELETE("/api/:id/:key", Delete) // 不能这么做的样子
 	r.GET("/api/delete/:id/:key", DeleteWithKey)
+
+	// R2 direct access: GET /r2/path?delete=key
+	r.GET("/r2/*path", R2File)
+
+	// Local filesystem access: GET /local/path?delete=key
+	r.GET("/local/*path", LocalFile)
+
+	// Static files (embedded)
+	r.GET("/", func(c *gin.Context) {
+		data, _ := embeddedStatic.ReadFile("static/index.html")
+		c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+	})
+	r.GET("/index.html", func(c *gin.Context) {
+		data, _ := embeddedStatic.ReadFile("static/index.html")
+		c.Data(http.StatusOK, "text/html; charset=utf-8", data)
+	})
+	r.GET("/sw.js", func(c *gin.Context) {
+		data, _ := embeddedStatic.ReadFile("static/sw.js")
+		c.Data(http.StatusOK, "application/javascript", data)
+	})
 
 	// S3-compatible API
 	hashStore, err := NewSQLiteHashStore("hashes.db")
@@ -137,6 +198,9 @@ func main() {
 	}
 
 	s3 := NewS3Controller(NewAzureDriver(agent, hashStore, pathStore))
+	if localDriver != nil {
+		s3.SetLocalDriver(localDriver)
+	}
 	r.PUT("/:bucket/*key", s3.PutObject)
 	r.GET("/:bucket/*key", s3.GetObject)
 	r.DELETE("/:bucket/*key", s3.DeleteObject)

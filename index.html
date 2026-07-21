@@ -42,7 +42,7 @@
           if (file){ // do nothing when paste texts.
             console.log(file);
             console.log(file.type); // 'image/png', while paste a picture.
-            if (file.type.startsWith("image") || file.type.startwith("audio")) {
+            if (file.type.startsWith("image") || file.type.startsWith("audio")) {
     
               const element = document.getElementById('div');
               let div = document.createElement('div');

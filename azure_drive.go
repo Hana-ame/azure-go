@@ -115,6 +115,25 @@ func (agt *Agent) RenewToken() error {
 //
 // return an Object
 // find what need in (Object).id
+func (agt *Agent) checkGraphResponse(resp *http.Response) error {
+	if resp.StatusCode < 400 {
+		return nil
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var m map[string]any
+	if json.Unmarshal(body, &m) == nil {
+		if e, ok := m["error"]; ok {
+			if em, ok := e.(map[string]any); ok {
+				msg, _ := em["message"].(string)
+				code, _ := em["code"].(string)
+				return fmt.Errorf("Graph API error: %s (%s)", msg, code)
+			}
+		}
+	}
+	return fmt.Errorf("Graph API returned status %d: %s", resp.StatusCode, string(body))
+}
+
 func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*orderedmap.OrderedMap, error) {
 	// save img to `<timestamp>-<randomString>`
 	endpoint := agt.driveRoot() + `/root:/img/` +
@@ -133,6 +152,9 @@ func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*or
 		body,
 	)
 	if err != nil {
+		return nil, err
+	}
+	if err := agt.checkGraphResponse(resp); err != nil {
 		return nil, err
 	}
 
@@ -161,6 +183,11 @@ func (agt *Agent) Get(id, fn string) (file io.ReadCloser, contentLength int64, c
 	if err != nil {
 		return
 	}
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, 0, "", fmt.Errorf("Graph API status %d: %s", resp.StatusCode, string(body))
+	}
 	file = resp.Body
 	contentLength = resp.ContentLength
 	contentType = resp.Header.Get("Content-Type")
@@ -184,13 +211,14 @@ func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := agt.checkGraphResponse(resp); err != nil {
+		return nil, err
+	}
 
 	result, err := myfetch.ResponseToJson(resp)
 	if err != nil {
 		return result, err
 	}
-	// fmt.Println(resp)
-	// fmt.Println(resp.Ctx().Response)
 
 	return result, nil
 }
@@ -212,13 +240,14 @@ func (agt *Agent) CreateUploadSession(ContentType string, body io.Reader) (*orde
 	if err != nil {
 		return nil, err
 	}
+	if err := agt.checkGraphResponse(resp); err != nil {
+		return nil, err
+	}
 
 	result, err := myfetch.ResponseToJson(resp)
 	if err != nil {
 		return result, err
 	}
-	// fmt.Println(resp)
-	// fmt.Println(resp.Ctx().Response)
 
 	return result, nil
 }
@@ -274,6 +303,9 @@ func (agt *Agent) Put(path, contentType string, body io.Reader) (string, error) 
 	if err != nil {
 		return "", err
 	}
+	if err := agt.checkGraphResponse(resp); err != nil {
+		return "", err
+	}
 
 	result, err := myfetch.ResponseToJson(resp)
 	if err != nil {
@@ -296,13 +328,18 @@ func (agt *Agent) GetByPath(path string) (io.ReadCloser, int64, string, error) {
 	if err != nil {
 		return nil, 0, "", err
 	}
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, 0, "", fmt.Errorf("Graph API status %d: %s", resp.StatusCode, string(body))
+	}
 	return resp.Body, resp.ContentLength, resp.Header.Get("Content-Type"), nil
 }
 
 func (agt *Agent) DeleteByPath(path string) error {
 	endpoint := agt.driveRoot() + `/root:/` + path
 
-	_, err := myfetch.Fetch(
+	resp, err := myfetch.Fetch(
 		http.MethodDelete,
 		endpoint,
 		map[string]string{
@@ -310,7 +347,16 @@ func (agt *Agent) DeleteByPath(path string) error {
 		},
 		nil,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return fmt.Errorf("Graph API status %d: %s", resp.StatusCode, string(body))
+	}
+	resp.Body.Close()
+	return nil
 }
 
 // head picture by ID
@@ -327,6 +373,9 @@ func (agt *Agent) HeadByID(id string) (contentLength int64, contentType string, 
 	)
 	if err != nil {
 		return 0, "", err
+	}
+	if resp.StatusCode >= 400 {
+		return 0, "", fmt.Errorf("Graph API status %d", resp.StatusCode)
 	}
 	return resp.ContentLength, resp.Header.Get("Content-Type"), nil
 }
@@ -345,6 +394,9 @@ func (agt *Agent) HeadByPath(path string) (int64, string, error) {
 	)
 	if err != nil {
 		return 0, "", err
+	}
+	if resp.StatusCode >= 400 {
+		return 0, "", fmt.Errorf("Graph API status %d", resp.StatusCode)
 	}
 	return resp.ContentLength, resp.Header.Get("Content-Type"), nil
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"embed"
 	"errors"
 	"fmt"
 	"io"
@@ -9,31 +10,98 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
 	tools "github.com/Hana-ame/azure-go/Tools"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
+	"github.com/Hana-ame/azure-go/storage"
+	localfs "github.com/Hana-ame/azure-go/storage/local"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
+
+var localDriver *localfs.Driver
+
+//go:embed static/*
+var embeddedStatic embed.FS
+
+func uploadResp(c *gin.Context, path string, dest string) {
+	h := hash(path)
+	o := orderedmap.New()
+	o.Set("id", h)
+	o.Set("path", "/"+path)
+
+	var baseURL, deleteBase string
+	if dest == "local" {
+		baseURL = os.Getenv("LOCAL_PUBLIC_URL")
+		if baseURL == "" {
+			baseURL = "https://upload.moonchan.xyz"
+		}
+		deleteBase = baseURL
+		o.Set("url", baseURL+"/local/"+path)
+		o.Set("delete_url", deleteBase+"/local/"+path+"?delete="+h)
+	} else {
+		baseURL = os.Getenv("R2_PUBLIC_URL")
+		if baseURL == "" {
+			baseURL = "https://r2.moonchan.xyz"
+		}
+		deleteBase = "https://upload.moonchan.xyz"
+		o.Set("url", baseURL+"/"+path)
+		o.Set("delete_url", deleteBase+"/r2/"+path+"?delete="+h)
+	}
+	c.JSON(http.StatusOK, o)
+}
+
+func ensureDriver(c *gin.Context) bool {
+	dest := c.Query("dest")
+	if dest == "local" {
+		if localDriver == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "local storage not configured"})
+			return false
+		}
+		return true
+	}
+	if r2Driver == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "no storage backend available"})
+		return false
+	}
+	return true
+}
+
+func uploadDriver(c *gin.Context) storage.StorageDriver {
+	dest := c.Query("dest")
+	if dest == "local" {
+		return localDriver
+	}
+	return r2Driver
+}
 
 // note: it works when local
 func Upload(c *gin.Context) {
-	ContentType := c.GetHeader("Content-Type")
-	ContentLength := c.GetHeader("Content-Length")
-	body := c.Request.Body // just use Body to get it https://stackoverflow.com/questions/46579429/golang-cant-get-body-from-request-getbody
+	if !ensureDriver(c) {
+		return
+	}
 
-	resp, err := agent.Upload(ContentType, ContentLength, body)
+	ContentType := c.GetHeader("Content-Type")
+	body := c.Request.Body
+
+	ts := strconv.Itoa(int(time.Now().Unix()))
+	fn := strings.TrimPrefix(c.Param("fn"), "/")
+	if fn == "" || fn == "/" {
+		fn = uuid.New().String()[:8] + contentTypeToExtend(ContentType)
+	}
+	path := ts + "/" + fn
+
+	drv := uploadDriver(c)
+	_, err := drv.Put(path, ContentType, body)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
 
-	id := resp.GetOrDefault("id", "failed").(string)
-	o := orderedmap.New()
-	o.Set("id", id)
-	o.Set("key", hash(id))
-
-	c.JSON(http.StatusOK, o)
-	// c.JSON(http.StatusOK, resp)
+	uploadResp(c, path, c.Query("dest"))
 }
 
 var Deleted = tools.NewLRUCache[string, int64](256)
@@ -119,12 +187,6 @@ func Get(c *gin.Context) {
 func Delete(c *gin.Context) {
 	id := c.Param("id")
 
-	// 小限制,暂时取消
-	// if c.Query("delete") != "delete" {
-	// 	c.AbortWithStatus(http.StatusNotFound)
-	// 	return
-	// }
-
 	_, err := agent.Delete(id)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -146,13 +208,11 @@ func DeleteWithKey(c *gin.Context) {
 		return
 	}
 
-	// 在cache中找到,说明已经删除
 	if _, ok := Deleted.Get(id); ok {
 		c.JSON(http.StatusOK, "not found")
 		return
 	}
 
-	// TODO: what if deleted an unexist one?
 	_, err := agent.Delete(id)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -168,16 +228,122 @@ func DeleteWithKey(c *gin.Context) {
 	Deleted.Put(id, tools.NewTimeStamp())
 }
 
-func CreateUploadSession(c *gin.Context) {
-	ContentType := c.GetHeader("Content-Type")
+func R2File(c *gin.Context) {
+	raw := strings.TrimPrefix(c.Param("path"), "/")
+	if raw == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	// strip the r2/ routing prefix - actual R2 key is just {ts}/{fn}
+	fullPath := strings.TrimPrefix(raw, "r2/")
 
-	resp, err := agent.CreateUploadSession(ContentType, nil)
-	if err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
+	if key := c.Query("delete"); key != "" {
+		if key != hash(fullPath) {
+			c.JSON(http.StatusUnauthorized, "key is wrong")
+			return
+		}
+		if _, ok := Deleted.Get(fullPath); ok {
+			c.JSON(http.StatusOK, "not found")
+			return
+		}
+		err := r2Driver.Delete(fullPath)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, err)
+			return
+		}
+		Deleted.Put(fullPath, tools.NewTimeStamp())
+		c.JSON(http.StatusGone, "gone")
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	file, size, contentType, err := r2Driver.Get(fullPath)
+	if err != nil {
+		c.String(http.StatusNotFound, err.Error())
+		return
+	}
+	defer file.Close()
+
+	c.DataFromReader(http.StatusOK, size, contentType, file, map[string]string{
+		"Content-Disposition": "inline",
+	})
+}
+
+func LocalFile(c *gin.Context) {
+	if localDriver == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	raw := strings.TrimPrefix(c.Param("path"), "/")
+	if raw == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	if key := c.Query("delete"); key != "" {
+		if key != hash(raw) {
+			c.JSON(http.StatusUnauthorized, "key is wrong")
+			return
+		}
+		if _, ok := Deleted.Get(raw); ok {
+			c.JSON(http.StatusOK, "not found")
+			return
+		}
+		err := localDriver.Delete(raw)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, err)
+			return
+		}
+		Deleted.Put(raw, tools.NewTimeStamp())
+		c.JSON(http.StatusGone, "gone")
+		return
+	}
+
+	file, size, contentType, err := localDriver.Get(raw)
+	if err != nil {
+		c.String(http.StatusNotFound, err.Error())
+		return
+	}
+	defer file.Close()
+
+	c.DataFromReader(http.StatusOK, size, contentType, file, map[string]string{
+		"Content-Disposition": "inline",
+	})
+}
+
+func CreateUploadSession(c *gin.Context) {
+	if !ensureDriver(c) {
+		return
+	}
+
+	ct := c.GetHeader("Content-Type")
+	if strings.HasPrefix(ct, "multipart/form-data") {
+		file, header, err := c.Request.FormFile("file")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "no file in form"})
+			return
+		}
+		defer file.Close()
+
+		fn := header.Filename
+		if fn == "" {
+			fn = uuid.New().String()[:8] + contentTypeToExtend(header.Header.Get("Content-Type"))
+		}
+
+		ts := strconv.Itoa(int(time.Now().Unix()))
+		path := ts + "/" + fn
+
+		drv := uploadDriver(c)
+		_, err = drv.Put(path, header.Header.Get("Content-Type"), file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, err)
+			return
+		}
+
+		uploadResp(c, path, c.Query("dest"))
+		return
+	}
+	Upload(c)
 }
 
 func hash(s string) string {

@@ -15,17 +15,30 @@ import (
 )
 
 // S3Controller handles S3-compatible API requests.
-// All storage details (including dedup) are handled by the driver.
 type S3Controller struct {
-	driver storage.StorageDriver
+	driver      storage.StorageDriver
+	localDriver storage.StorageDriver
 }
 
 func NewS3Controller(driver storage.StorageDriver) *S3Controller {
 	return &S3Controller{driver: driver}
 }
 
+func (s *S3Controller) SetLocalDriver(drv storage.StorageDriver) {
+	s.localDriver = drv
+}
+
+func (s *S3Controller) s3Driver(c *gin.Context) storage.StorageDriver {
+	if c.Query("dest") == "local" && s.localDriver != nil {
+		return s.localDriver
+	}
+	return s.driver
+}
+
 // PutObject handles PUT /:bucket/*key
 func (s *S3Controller) PutObject(c *gin.Context) {
+	drv := s.s3Driver(c)
+
 	bucket := c.Param("bucket")
 	key := c.Param("key")
 	if key == "" || key == "/" {
@@ -39,7 +52,7 @@ func (s *S3Controller) PutObject(c *gin.Context) {
 		contentType = "application/octet-stream"
 	}
 
-	result, err := s.driver.Put(path, contentType, c.Request.Body)
+	result, err := drv.Put(path, contentType, c.Request.Body)
 	if err != nil {
 		writeS3Error(c, http.StatusInternalServerError, "InternalError", err.Error(), path)
 		return
@@ -55,11 +68,13 @@ func (s *S3Controller) PutObject(c *gin.Context) {
 
 // GetObject handles GET /:bucket/*key
 func (s *S3Controller) GetObject(c *gin.Context) {
+	drv := s.s3Driver(c)
+
 	bucket := c.Param("bucket")
 	key := c.Param("key")
 	path := bucket + key
 
-	body, contentLength, contentType, err := s.driver.Get(path)
+	body, contentLength, contentType, err := drv.Get(path)
 	if err != nil {
 		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "not found") {
 			writeS3Error(c, http.StatusNotFound, "NoSuchKey", "The specified key does not exist.", path)
@@ -87,11 +102,13 @@ func (s *S3Controller) GetObject(c *gin.Context) {
 
 // DeleteObject handles DELETE /:bucket/*key
 func (s *S3Controller) DeleteObject(c *gin.Context) {
+	drv := s.s3Driver(c)
+
 	bucket := c.Param("bucket")
 	key := c.Param("key")
 	path := bucket + key
 
-	if err := s.driver.Delete(path); err != nil {
+	if err := drv.Delete(path); err != nil {
 		writeS3Error(c, http.StatusInternalServerError, "InternalError", err.Error(), path)
 		return
 	}
@@ -102,11 +119,13 @@ func (s *S3Controller) DeleteObject(c *gin.Context) {
 
 // HeadObject handles HEAD /:bucket/*key
 func (s *S3Controller) HeadObject(c *gin.Context) {
+	drv := s.s3Driver(c)
+
 	bucket := c.Param("bucket")
 	key := c.Param("key")
 	path := bucket + key
 
-	contentLength, contentType, err := s.driver.Head(path)
+	contentLength, contentType, err := drv.Head(path)
 	if err != nil {
 		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "not found") {
 			writeS3Error(c, http.StatusNotFound, "NoSuchKey", "The specified key does not exist.", path)

@@ -77,3 +77,41 @@ func (s *SQLitePathStore) Delete(path string) error {
 	_, err := s.db.Exec(`DELETE FROM paths WHERE path = ?`, path)
 	return err
 }
+
+// SQLiteR2Store maps hash -> R2 object key for R2 file delete lookups.
+type SQLiteR2Store struct {
+	db *sql.DB
+}
+
+func NewSQLiteR2Store(dbPath string) (*SQLiteR2Store, error) {
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("open r2 db: %w", err)
+	}
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS r2_keys (hash TEXT PRIMARY KEY, path TEXT NOT NULL)`)
+	if err != nil {
+		return nil, fmt.Errorf("create r2_keys table: %w", err)
+	}
+
+	return &SQLiteR2Store{db: db}, nil
+}
+
+func (s *SQLiteR2Store) Lookup(hash string) (string, error) {
+	var path string
+	err := s.db.QueryRow(`SELECT path FROM r2_keys WHERE hash = ?`, hash).Scan(&path)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return path, err
+}
+
+func (s *SQLiteR2Store) Store(hash, path string) error {
+	_, err := s.db.Exec(`INSERT OR REPLACE INTO r2_keys (hash, path) VALUES (?, ?)`, hash, path)
+	return err
+}
+
+func (s *SQLiteR2Store) Delete(hash string) error {
+	_, err := s.db.Exec(`DELETE FROM r2_keys WHERE hash = ?`, hash)
+	return err
+}

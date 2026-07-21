@@ -17,3 +17,5 @@ __debug_*
 client_secrets.txt
 access
 temp
+
+*.db

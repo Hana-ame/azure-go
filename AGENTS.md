@@ -1,6 +1,6 @@
 # AGENTS.md — Azure Go (onedrive-cf)
 
-## Project State (v26.07.10)
+## Project State (v26.07.22)
 
 ### Architecture
 - **Language**: Go 1.23.3, CGO_ENABLED=0 for static builds
@@ -20,33 +20,53 @@
 - **No refresh_token** — doesn't exist in `client_credentials` flow
 - **User context**: `user_id` field in Agent (e.g. `shami@yumenaka.onmicrosoft.com`)
 
-### API Endpoints (Graph)
-All endpoints use `/users/{user_id}/drive/...` instead of `/me/drive/...`:
+### Storage Backends
 
-| Method | Function | Path |
-|--------|----------|------|
-| PUT | Upload | `/users/{user_id}/drive/root:/img/{ts}-{uuid}{ext}:/content` |
-| GET | Get | `/users/{user_id}/drive/items/{id}/content` |
-| DELETE | Delete | `/users/{user_id}/drive/items/{id}` |
-| POST | CreateUploadSession | `/users/{user_id}/drive/root:/large/{ts}-{uuid}{ext}:/createUploadSession` |
-| PUT | Put (S3) | `/users/{user_id}/drive/root:/{path}:/content` |
-| GET | GetByPath | `/users/{user_id}/drive/root:/{path}:/content` |
-| HEAD | HeadByID | `/users/{user_id}/drive/items/{id}/content` |
-| HEAD | HeadByPath | `/users/{user_id}/drive/root:/{path}:/content` |
-| DELETE | DeleteByPath | `/users/{user_id}/drive/root:/{path}` |
+| Backend | Driver | Env Vars | Purpose |
+|---------|--------|----------|---------|
+| **OneDrive** | `Agent` (azure_drive.go) | tenent_id, client_id, ..., access_token | Legacy read/delete via Graph API |
+| **Cloudflare R2** | `r2.Driver` (storage/r2/) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | Default upload destination |
+| **Local filesystem** | `localfs.Driver` (storage/local/) | `LOCAL_STORAGE_PATH` (default `.`), `LOCAL_PUBLIC_URL` | `?dest=local` uploads |
 
-### S3 Compatibility
-- `PathStore` interface in `storage/driver.go`; `SQLitePathStore` in `hash_store.go`
-- `AzureDriver` wraps `Agent` with `hashStore` + `pathStore`
-- `S3Controller` in `s3_controller.go`: PutObject/GetObject/DeleteObject/HeadObject
-- Bucket server in `s3_bucket_server.go`: `ListenBucket(addr, bucket, driver, authToken)`
-- Bearer auth via `S3_AUTH_TOKEN` env var; none if empty
+### API Routes
+
+| Method | Route | Backend | Description |
+|--------|-------|---------|-------------|
+| PUT | `/api/upload?dest=local` | **R2** or **Local** | Upload with optional `?dest=local` |
+| POST | `/api/upload?dest=local` | **R2** or **Local** | Multipart upload with optional `?dest=local` |
+| GET | `/api/:id/*fn` | OneDrive | Get file by OneDrive item ID (legacy) |
+| DELETE | `/api/:id/:key` | OneDrive | Delete by OneDrive item ID (legacy) |
+| GET | `/api/delete/:id/:key` | OneDrive | DeleteWithKey by OneDrive item ID (legacy) |
+| GET | `/r2/*path` | R2 | R2 file serve/delete |
+| GET | `/local/*path` | Local | Local file serve/delete |
+| PUT | `/:bucket/*key?dest=local` | **Azure** or **Local** | S3-compat upload with optional `?dest=local` |
+| GET | `/:bucket/*key?dest=local` | **Azure** or **Local** | S3-compat GET |
+| DELETE | `/:bucket/*key?dest=local` | **Azure** or **Local** | S3-compat DELETE |
+| HEAD | `/:bucket/*key?dest=local` | **Azure** or **Local** | S3-compat HEAD |
+
+### Upload Response Format
+```json
+{
+  "id": "<sha256 hash>",
+  "path": "/<ts>/<filename>",
+  "url": "https://<PUBLIC_URL>/<path>",
+  "delete_url": "https://upload.moonchan.xyz/<backend>/<path>?delete=<hash>"
+}
+```
+
+### Local Storage (`storage/local/local.go`)
+- Implements `storage.StorageDriver` using standard `os` package
+- `Put`: MD5-hashes content during write for ETag
+- File path: `{LOCAL_STORAGE_PATH}/{ts}/{fn}`
+- Served at `/local/{ts}/{fn}`
+- Supported via `?dest=local` on upload & S3 routes
+- `LOCAL_PUBLIC_URL` env var for public URL prefix (default `https://upload.moonchan.xyz`)
 
 ### Build & Deploy
 - Build: `CGO_ENABLED=0 go build -o temp` (static binary for VPS)
 - VPS: `/root/azure/` directory, run via `nohup ./temp > nohup.out 2>&1 &`
 - Config files on VPS:
-  - `.env`: tenant_id, client_id, redirect_url, scope, user_id, origin, LISTEN_ADDR, etc.
+  - `.env`: tenant_id, client_id, redirect_url, scope, user_id, origin, LISTEN_ADDR, R2_*, LOCAL_*
   - `client_secrets.txt`: Azure Client Secret (plain text)
   - `access_token`: current access token (auto-updated)
 
@@ -70,13 +90,14 @@ All endpoints use `/users/{user_id}/drive/...` instead of `/me/drive/...`:
 5. **Token persistence**: only `access_token` file needed; `refresh_token` file no longer used
 
 ### Recent Changes
-- Replaced `refresh_token` flow with `client_credentials`
-- Added `client_secrets.txt` reading
-- Changed all `/me/drive` endpoints to `/users/{user_id}/drive`
-- Renamed `access` → `access_token` save/load file
-- Removed `Origin` header from token requests
+- `?dest=local` support for `/api/upload` and S3 routes
+- Added `storage/local/local.go` — filesystem StorageDriver
+- Added `GET /local/*path` for local file serving/deletion
+- S3 controller supports `?dest=local` to use local driver
+- nginx: single `location /` proxy_pass for all routes (VPS + cloudcone)
+- Upload script (`upload.py`) uses `data.url` from response
+- Version bumped to v26.07.22
 
 ### Next Steps (suggested)
-- [ ] Add retry delay in RenewToken failure loop (currently hammers Azure on error)
 - [ ] Set up systemd service for auto-restart
-- [ ] Set `GIN_MODE=release` in production `.env`
+- [ ] Add retry delay in RenewToken failure loop
