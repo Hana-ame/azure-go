@@ -128,6 +128,11 @@ func main() {
 		log.Printf("[Init] R2 env vars incomplete, R2 driver disabled")
 	}
 
+	if os.Getenv("AZURE_DISABLE") == "true" {
+		azureDisabled = true
+		log.Printf("[Init] Azure API disabled by AZURE_DISABLE=true")
+	}
+
 	localStoragePath := os.Getenv("LOCAL_STORAGE_PATH")
 	if localStoragePath == "" {
 		localStoragePath = "."
@@ -141,17 +146,19 @@ func main() {
 	}
 
 	// Deamon
-	go func() {
-		for {
-			for err := agent.RenewToken(); err != nil; err = agent.RenewToken() {
-				debug.W("renew", err)
+	if !azureDisabled {
+		go func() {
+			for {
+				for err := agent.RenewToken(); err != nil; err = agent.RenewToken() {
+					debug.W("renew", err)
+					time.Sleep(1 * time.Second)
+				}
+				time.Sleep(20 * time.Minute)
 			}
-			// if Deleted.Len() > 64 {
-			// 	Deleted = &syncmapwithcnt.SyncMapWithCount{}
-			// }
-			time.Sleep(20 * time.Minute)
-		}
-	}()
+		}()
+	} else {
+		log.Printf("[Init] Token renewal skipped (Azure disabled)")
+	}
 
 	// go main_with_redirect() // not used.
 

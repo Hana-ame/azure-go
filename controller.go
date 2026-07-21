@@ -23,6 +23,7 @@ import (
 )
 
 var localDriver *localfs.Driver
+var azureDisabled bool
 
 //go:embed static/*
 var embeddedStatic embed.FS
@@ -111,6 +112,10 @@ var Deleted = tools.NewLRUCache[string, int64](256)
 // 在你的算法中，需要左移 16 位
 const CacheExpireDelta = 1800 * 1000 << 16
 
+func notSupported(c *gin.Context) {
+	c.JSON(http.StatusServiceUnavailable, gin.H{"error": "OneDrive API disabled"})
+}
+
 func Redirect(c *gin.Context) {
 	id := c.Param("id")
 	fn := c.Param("fn")
@@ -119,6 +124,10 @@ func Redirect(c *gin.Context) {
 }
 
 func Get(c *gin.Context) {
+	if azureDisabled {
+		notSupported(c)
+		return
+	}
 	id := c.Param("id")
 	fn := c.Param("fn")
 	ext := filepath.Ext(fn)
@@ -185,6 +194,10 @@ func Get(c *gin.Context) {
 }
 
 func Delete(c *gin.Context) {
+	if azureDisabled {
+		notSupported(c)
+		return
+	}
 	id := c.Param("id")
 
 	_, err := agent.Delete(id)
@@ -200,6 +213,10 @@ func Delete(c *gin.Context) {
 }
 
 func DeleteWithKey(c *gin.Context) {
+	if azureDisabled {
+		notSupported(c)
+		return
+	}
 	id := c.Param("id")
 	key := c.Param("key")
 
