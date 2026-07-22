@@ -18,11 +18,13 @@ import (
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/storage"
 	localfs "github.com/Hana-ame/azure-go/storage/local"
+	p_sda1_dev "github.com/Hana-ame/azure-go/storage/p_sda1_dev"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 var localDriver *localfs.Driver
+var pSda1DevDriver *p_sda1_dev.Driver
 var azureDisabled bool
 
 //go:embed static/*
@@ -44,6 +46,13 @@ func uploadResp(c *gin.Context, path string, dest string) {
 	o := orderedmap.New()
 	o.Set("id", h)
 	o.Set("path", "/"+path)
+
+	if dest == "p.sda1.dev" {
+		o.Set("path", "/p.sda1.dev/"+path)
+		o.Set("url", "https://p.sda1.dev/"+path)
+		c.JSON(http.StatusOK, o)
+		return
+	}
 
 	reqBase := requestBaseURL(c)
 
@@ -74,6 +83,13 @@ func ensureDriver(c *gin.Context) bool {
 		}
 		return true
 	}
+	if dest == "p.sda1.dev" {
+		if pSda1DevDriver == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "p.sda1.dev storage not configured"})
+			return false
+		}
+		return true
+	}
 	if r2Driver == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "no storage backend available"})
 		return false
@@ -85,6 +101,9 @@ func uploadDriver(c *gin.Context) storage.StorageDriver {
 	dest := c.Query("dest")
 	if dest == "local" {
 		return localDriver
+	}
+	if dest == "p.sda1.dev" {
+		return pSda1DevDriver
 	}
 	return r2Driver
 }
@@ -106,10 +125,13 @@ func Upload(c *gin.Context) {
 	path := ts + "/" + fn
 
 	drv := uploadDriver(c)
-	_, err := drv.Put(path, ContentType, body)
+	result, err := drv.Put(path, ContentType, body)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
 		return
+	}
+	if result != nil && result.Path != "" {
+		path = result.Path
 	}
 
 	uploadResp(c, path, c.Query("dest"))
@@ -338,6 +360,30 @@ func LocalFile(c *gin.Context) {
 	})
 }
 
+func P_sda1_devFile(c *gin.Context) {
+	if pSda1DevDriver == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	raw := strings.TrimPrefix(c.Param("path"), "/")
+	if raw == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	file, size, contentType, err := pSda1DevDriver.Get(raw)
+	if err != nil {
+		c.String(http.StatusNotFound, err.Error())
+		return
+	}
+	defer file.Close()
+
+	c.DataFromReader(http.StatusOK, size, contentType, file, map[string]string{
+		"Content-Disposition": "inline",
+	})
+}
+
 func CreateUploadSession(c *gin.Context) {
 	if !ensureDriver(c) {
 		return
@@ -361,10 +407,13 @@ func CreateUploadSession(c *gin.Context) {
 		path := ts + "/" + fn
 
 		drv := uploadDriver(c)
-		_, err = drv.Put(path, header.Header.Get("Content-Type"), file)
+		result, err := drv.Put(path, header.Header.Get("Content-Type"), file)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, err)
 			return
+		}
+		if result != nil && result.Path != "" {
+			path = result.Path
 		}
 
 		uploadResp(c, path, c.Query("dest"))

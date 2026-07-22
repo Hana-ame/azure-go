@@ -8,6 +8,7 @@ import "io"
 type PutResult struct {
 	ID      string
 	ETag    string
+	Path    string // actual storage path (may differ from input path, e.g. external services)
 	DupPath string // non-empty if content was already stored at this path (dedup)
 }
 

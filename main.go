@@ -17,6 +17,7 @@ import (
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/myfetch"
 	localfs "github.com/Hana-ame/azure-go/storage/local"
+	p_sda1_dev "github.com/Hana-ame/azure-go/storage/p_sda1_dev"
 	"github.com/Hana-ame/azure-go/storage/r2"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -30,7 +31,7 @@ var agent *Agent
 var r2Driver *r2.Driver
 var r2PublicURL string
 
-const Version = "v26.07.22"
+const Version = "v26.07.23"
 
 func main_with_redirect() {
 
@@ -145,6 +146,9 @@ func main() {
 		log.Printf("[Init] Local driver initialized: root=%s", localStoragePath)
 	}
 
+	pSda1DevDriver = p_sda1_dev.New()
+	log.Printf("[Init] p.sda1.dev driver initialized")
+
 	// Deamon
 	if !azureDisabled {
 		go func() {
@@ -178,6 +182,9 @@ func main() {
 
 	// Local filesystem access: GET /local/path?delete=key
 	r.GET("/local/*path", LocalFile)
+
+	// p.sda1.dev proxy: GET /p.sda1.dev/path
+	r.GET("/p.sda1.dev/*path", P_sda1_devFile)
 
 	// Static files (embedded)
 	r.GET("/", func(c *gin.Context) {

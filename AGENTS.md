@@ -1,6 +1,6 @@
 # AGENTS.md — Azure Go (onedrive-cf)
 
-## Project State (v26.07.22)
+## Project State (v26.07.23)
 
 ### Architecture
 - **Language**: Go 1.23.3, CGO_ENABLED=0 for static builds
@@ -27,6 +27,7 @@
 | **OneDrive** | `Agent` (azure_drive.go) | tenent_id, client_id, ..., access_token | Legacy read/delete via Graph API |
 | **Cloudflare R2** | `r2.Driver` (storage/r2/) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | Default upload destination (bucket: `r2-moonchan`, public: `r2.moonchan.xyz`) |
 | **Local filesystem** | `localfs.Driver` (storage/local/) | `LOCAL_STORAGE_PATH` (default `.`), `LOCAL_PUBLIC_URL` | `?dest=local` uploads |
+| **p.sda1.dev** | `p_sda1_dev.Driver` (storage/p_sda1_dev/) | — (always available) | `?dest=p.sda1.dev` uploads, proxies to p.sda1.dev API |
 
 ### API Routes
 
@@ -101,6 +102,11 @@
 - Upload script (`upload.py`) uses `data.url` from response
 - 1s sleep delay added to RenewToken failure loop
 - Version bumped to v26.07.22
+- Added `storage/p_sda1_dev/` driver — proxies uploads via p.sda1.dev API
+- `?dest=p.sda1.dev` supported on `/api/upload` routes; returns `path=/p.sda1.dev/...` `url=https://p.sda1.dev/...`
+- Added `GET /p.sda1.dev/*path` for proxied file serving
+- Added `Path` field to `storage.PutResult` for externally-assigned paths
+- Version bumped to v26.07.23
 
 ### Next Steps (suggested)
 - [ ] Set up systemd service for auto-restart
