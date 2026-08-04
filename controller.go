@@ -148,8 +148,19 @@ func notSupported(c *gin.Context) {
 	c.JSON(http.StatusServiceUnavailable, gin.H{"error": "OneDrive API disabled"})
 }
 
+// OneDrive item IDs in this deployment all start with "01LL".
+const onedriveIDPrefix = "01LL"
+
+func validOneDriveID(id string) bool {
+	return strings.HasPrefix(id, onedriveIDPrefix)
+}
+
 func Redirect(c *gin.Context) {
 	id := c.Param("id")
+	if !validOneDriveID(id) {
+		c.Status(http.StatusNotFound)
+		return
+	}
 	fn := c.Param("fn")
 	prefix := os.Getenv("ENDPOINT_PREFIX") //ENDPOINT_PREFIX=https://uploads.moonchan.xyz/api/
 	c.Redirect(301, prefix+id+"/"+fn)
@@ -162,6 +173,10 @@ func Get(c *gin.Context) {
 	}
 	id := c.Param("id")
 	fn := c.Param("fn")
+	if !validOneDriveID(id) {
+		c.Status(http.StatusNotFound)
+		return
+	}
 	ext := filepath.Ext(fn)
 
 	// 1. 检查缓存中是否标记为已删除
@@ -231,6 +246,10 @@ func Delete(c *gin.Context) {
 		return
 	}
 	id := c.Param("id")
+	if !validOneDriveID(id) {
+		c.Status(http.StatusNotFound)
+		return
+	}
 
 	_, err := agent.Delete(id)
 	if err != nil {
@@ -251,6 +270,10 @@ func DeleteWithKey(c *gin.Context) {
 	}
 	id := c.Param("id")
 	key := c.Param("key")
+	if !validOneDriveID(id) {
+		c.Status(http.StatusNotFound)
+		return
+	}
 
 	if hash(id) != key {
 		c.JSON(http.StatusUnauthorized, "key is wrong")
