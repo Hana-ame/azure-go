@@ -154,6 +154,7 @@ func (agt *Agent) Upload(ContentType, ContentLength string, body io.Reader) (*or
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 	if err := agt.checkGraphResponse(resp); err != nil {
 		return nil, err
 	}
@@ -211,6 +212,7 @@ func (agt *Agent) Delete(id string) (*orderedmap.OrderedMap, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 	if err := agt.checkGraphResponse(resp); err != nil {
 		return nil, err
 	}
@@ -240,6 +242,7 @@ func (agt *Agent) CreateUploadSession(ContentType string, body io.Reader) (*orde
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 	if err := agt.checkGraphResponse(resp); err != nil {
 		return nil, err
 	}
@@ -298,20 +301,21 @@ func (agt *Agent) Put(path, contentType string, body io.Reader) (string, error) 
 			"Authorization": "Bearer " + agt.access_token,
 			"Content-Type":  contentType,
 		},
-		body,
-	)
-	if err != nil {
-		return "", err
-	}
-	if err := agt.checkGraphResponse(resp); err != nil {
-		return "", err
-	}
+body,
+)
+if err != nil {
+	return "", err
+}
+defer resp.Body.Close()
+if err := agt.checkGraphResponse(resp); err != nil {
+	return "", err
+}
 
-	result, err := myfetch.ResponseToJson(resp)
-	if err != nil {
-		return "", err
-	}
-	return result.GetOrDefault("id", "").(string), nil
+result, err := myfetch.ResponseToJson(resp)
+if err != nil {
+	return "", err
+}
+return result.GetOrDefault("id", "").(string), nil
 }
 
 func (agt *Agent) GetByPath(path string) (io.ReadCloser, int64, string, error) {
@@ -374,6 +378,7 @@ func (agt *Agent) HeadByID(id string) (contentLength int64, contentType string, 
 	if err != nil {
 		return 0, "", err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		return 0, "", fmt.Errorf("Graph API status %d", resp.StatusCode)
 	}
@@ -395,6 +400,7 @@ func (agt *Agent) HeadByPath(path string) (int64, string, error) {
 	if err != nil {
 		return 0, "", err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		return 0, "", fmt.Errorf("Graph API status %d", resp.StatusCode)
 	}
