@@ -31,7 +31,7 @@ var agent *Agent
 var r2Driver *r2.Driver
 var r2PublicURL string
 
-const Version = "v26.07.23"
+const Version = "v26.08.08"
 
 func main_with_redirect() {
 
@@ -219,7 +219,8 @@ func main() {
 		log.Printf("WARN: path store init failed: %v", err)
 	}
 
-	s3 := NewS3Controller(NewAzureDriver(agent, hashStore, pathStore))
+	azureDriver = NewAzureDriver(agent, hashStore, pathStore)
+	s3 := NewS3Controller(azureDriver)
 	if localDriver != nil {
 		s3.SetLocalDriver(localDriver)
 	}
@@ -230,7 +231,7 @@ func main() {
 
 	// Dedicated bucket server on 127.26.7.10:8080
 	go func() {
-		if err := ListenBucket("127.26.7.10:8080", "mybucket", NewAzureDriver(agent, hashStore, pathStore), os.Getenv("S3_AUTH_TOKEN")); err != nil {
+		if err := ListenBucket("127.26.7.10:8080", "mybucket", azureDriver, os.Getenv("S3_AUTH_TOKEN")); err != nil {
 			log.Printf("[BucketServer] failed: %v", err)
 		}
 	}()

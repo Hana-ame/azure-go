@@ -1,6 +1,6 @@
 # AGENTS.md — Azure Go (onedrive-cf)
 
-## Project State (v26.07.23)
+## Project State (v26.08.08)
 
 ### Architecture
 - **Language**: Go 1.23.3, CGO_ENABLED=0 for static builds
@@ -33,8 +33,8 @@
 
 | Method | Route | Backend | Description |
 |--------|-------|---------|-------------|
-| PUT | `/api/upload?dest=local` | **R2** or **Local** | Upload with optional `?dest=local` |
-| POST | `/api/upload?dest=local` | **R2** or **Local** | Multipart upload with optional `?dest=local` |
+| PUT | `/api/upload` | **R2**, **Local**, **Azure**, **p.sda1.dev** | Upload, backend via `?dest=` (r2/local/azure/p.sda1.dev) |
+| POST | `/api/upload` | **R2**, **Local**, **Azure**, **p.sda1.dev** | Multipart upload, backend via `?dest=` |
 | GET | `/api/:id/*fn` | OneDrive | Get file by OneDrive item ID (legacy) |
 | DELETE | `/api/:id/:key` | OneDrive | Delete by OneDrive item ID (legacy) |
 | GET | `/api/delete/:id/:key` | OneDrive | DeleteWithKey by OneDrive item ID (legacy) |
@@ -107,6 +107,10 @@
 - Added `GET /p.sda1.dev/*path` for proxied file serving
 - Added `Path` field to `storage.PutResult` for externally-assigned paths
 - Version bumped to v26.07.23
+- `?dest=azure` restored on `/api/upload` — uploads to OneDrive via global `azureDriver` (reused by S3 + bucket server)
+- Azure upload response: `id` = OneDrive item ID, `path=/api/<id>`, `delete_url=/api/delete/<id>/<hash(id)>`
+- `uploadResp` now takes `result *storage.PutResult` for backend-assigned IDs
+- Version bumped to v26.08.08
 
 ### Next Steps (suggested)
 - [ ] Set up systemd service for auto-restart

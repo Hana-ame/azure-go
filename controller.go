@@ -25,6 +25,7 @@ import (
 
 var localDriver *localfs.Driver
 var pSda1DevDriver *p_sda1_dev.Driver
+var azureDriver *AzureDriver
 var azureDisabled bool
 
 //go:embed static/*
@@ -41,11 +42,24 @@ func requestBaseURL(c *gin.Context) string {
 	return scheme + "://" + host
 }
 
-func uploadResp(c *gin.Context, path string, dest string) {
+func uploadResp(c *gin.Context, path string, dest string, result *storage.PutResult) {
 	h := hash(path)
 	o := orderedmap.New()
 	o.Set("id", h)
 	o.Set("path", "/"+path)
+
+	if dest == "azure" && result != nil {
+		// OneDrive item ID from upstream; delete key is hash of the ID
+		id := result.ID
+		reqBase := requestBaseURL(c)
+		o.Set("id", id)
+		o.Set("key", hash(id))
+		o.Set("path", "/api/"+id)
+		o.Set("url", reqBase+"/api/"+id+"/")
+		o.Set("delete_url", reqBase+"/api/delete/"+id+"/"+hash(id))
+		c.JSON(http.StatusOK, o)
+		return
+	}
 
 	if dest == "p.sda1.dev" {
 		o.Set("path", "/p.sda1.dev/"+path)
@@ -90,6 +104,13 @@ func ensureDriver(c *gin.Context) bool {
 		}
 		return true
 	}
+	if dest == "azure" {
+		if azureDisabled || azureDriver == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "azure storage not configured"})
+			return false
+		}
+		return true
+	}
 	if r2Driver == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "no storage backend available"})
 		return false
@@ -104,6 +125,9 @@ func uploadDriver(c *gin.Context) storage.StorageDriver {
 	}
 	if dest == "p.sda1.dev" {
 		return pSda1DevDriver
+	}
+	if dest == "azure" {
+		return azureDriver
 	}
 	return r2Driver
 }
@@ -134,7 +158,7 @@ func Upload(c *gin.Context) {
 		path = result.Path
 	}
 
-	uploadResp(c, path, c.Query("dest"))
+	uploadResp(c, path, c.Query("dest"), result)
 }
 
 var Deleted = tools.NewLRUCache[string, int64](256)
@@ -439,7 +463,7 @@ func CreateUploadSession(c *gin.Context) {
 			path = result.Path
 		}
 
-		uploadResp(c, path, c.Query("dest"))
+		uploadResp(c, path, c.Query("dest"), result)
 		return
 	}
 	Upload(c)
