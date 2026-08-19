@@ -1,6 +1,6 @@
 # AGENTS.md — Azure Go (onedrive-cf)
 
-## Project State (v26.08.08)
+## Project State (v26.08.19)
 
 ### Architecture
 - **Language**: Go 1.23.3, CGO_ENABLED=0 for static builds
@@ -48,7 +48,7 @@
 ### Upload Response Format
 ```json
 {
-  "id": "<sha256 hash>",
+  "id": "<Azure OneDrive item ID; empty for non-Azure backends>",
   "path": "/<ts>/<filename>",
   "url": "https://<PUBLIC_URL>/<path>",
   "delete_url": "https://upload.moonchan.xyz/<backend>/<path>?delete=<hash>"
@@ -110,7 +110,9 @@
 - `?dest=azure` restored on `/api/upload` — uploads to OneDrive via global `azureDriver` (reused by S3 + bucket server)
 - Azure upload response: `id` = OneDrive item ID, `path=/api/<id>`, `delete_url=/api/delete/<id>/<hash(id)>`
 - `uploadResp` now takes `result *storage.PutResult` for backend-assigned IDs
-- Version bumped to v26.08.08
+- Azure upload restored to legacy `Agent.Upload` path: `img/{ts}-{uuid}{ext}`, no `{ts}/` folder
+- Unified upload response: `id` reserved for Azure; R2/local/p.sda1.dev use empty `id`
+- Version bumped to v26.08.19
 
 ### Next Steps (suggested)
 - [ ] Set up systemd service for auto-restart

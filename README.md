@@ -87,7 +87,7 @@ curl -X GET 'https://upload.moonchan.xyz/local/1700000000/abc123.jpg?delete=<has
 
 ```json
 {
-  "id": "<sha256 hash>",
+  "id": "<Azure OneDrive item ID; empty for non-Azure backends>",
   "path": "/<ts>/<filename>",
   "url": "https://<访问地址>/<path>",
   "delete_url": "https://<服务地址>/<backend>/<path>?delete=<hash>"
@@ -96,7 +96,7 @@ curl -X GET 'https://upload.moonchan.xyz/local/1700000000/abc123.jpg?delete=<has
 
 - `url`: 可直接访问的链接，图片浏览器内联显示
 - `delete_url`: 访问即删除（需要 hash 验证）
-- `id`: 用于删除验证的 hash
+- `id`: Azure 返回 OneDrive item ID；R2/Local 等非 Azure 后端为空字符串 (保留字段)
 
 ## upload.py
 

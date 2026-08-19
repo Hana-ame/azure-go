@@ -45,7 +45,7 @@ func requestBaseURL(c *gin.Context) string {
 func uploadResp(c *gin.Context, path string, dest string, result *storage.PutResult) {
 	h := hash(path)
 	o := orderedmap.New()
-	o.Set("id", h)
+	o.Set("id", "")
 	o.Set("path", "/"+path)
 
 	if dest == "azure" && result != nil {
@@ -140,6 +140,18 @@ func Upload(c *gin.Context) {
 
 	ContentType := c.GetHeader("Content-Type")
 	body := c.Request.Body
+
+	// Azure legacy mode: use Agent.Upload directly, exactly like the original img/ layout.
+	if c.Query("dest") == "azure" {
+		resp, err := agent.Upload(ContentType, c.GetHeader("Content-Length"), body)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, err)
+			return
+		}
+		id, _ := resp.GetOrDefault("id", "").(string)
+		uploadResp(c, "", "azure", &storage.PutResult{ID: id})
+		return
+	}
 
 	ts := strconv.Itoa(int(time.Now().Unix()))
 	fn := strings.TrimPrefix(c.Param("fn"), "/")
@@ -444,6 +456,18 @@ func CreateUploadSession(c *gin.Context) {
 			return
 		}
 		defer file.Close()
+
+		// Azure legacy mode: use Agent.Upload directly, exactly like the original img/ layout.
+		if c.Query("dest") == "azure" {
+			resp, err := agent.Upload(header.Header.Get("Content-Type"), strconv.FormatInt(header.Size, 10), file)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, err)
+				return
+			}
+			id, _ := resp.GetOrDefault("id", "").(string)
+			uploadResp(c, "", "azure", &storage.PutResult{ID: id})
+			return
+		}
 
 		fn := header.Filename
 		if fn == "" {
