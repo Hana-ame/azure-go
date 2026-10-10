@@ -144,8 +144,22 @@ func effectiveDest(dest string) string {
 	return dest
 }
 
+// destFromRequest resolves the upload destination from the request,
+// supporting both path form (/api/upload/<dest>, no query params) and
+// the legacy query form (?dest=<dest>). Path takes precedence so the
+// frontend can drop query params entirely.
+func destFromRequest(c *gin.Context) string {
+	if q := c.Query("dest"); q != "" {
+		return q
+	}
+	if fn := c.Param("fn"); fn != "" {
+		return strings.TrimPrefix(fn, "/")
+	}
+	return ""
+}
+
 func ensureDriver(c *gin.Context) bool {
-	dest := effectiveDest(c.Query("dest"))
+	dest := effectiveDest(destFromRequest(c))
 	if dest == "local" {
 		if localDriver == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "local storage not configured"})
@@ -175,7 +189,7 @@ func ensureDriver(c *gin.Context) bool {
 }
 
 func uploadDriver(c *gin.Context) storage.StorageDriver {
-	dest := effectiveDest(c.Query("dest"))
+	dest := effectiveDest(destFromRequest(c))
 	if dest == "local" {
 		return localDriver
 	}
@@ -197,7 +211,7 @@ func Upload(c *gin.Context) {
 	ContentType := c.GetHeader("Content-Type")
 	body := c.Request.Body
 
-	dest := effectiveDest(c.Query("dest"))
+	dest := effectiveDest(destFromRequest(c))
 
 	// Azure legacy mode: use Agent.Upload directly, exactly like the original img/ layout.
 	if dest == "azure" {
@@ -515,7 +529,7 @@ func CreateUploadSession(c *gin.Context) {
 		}
 		defer file.Close()
 
-		dest := effectiveDest(c.Query("dest"))
+		dest := effectiveDest(destFromRequest(c))
 
 		// Azure legacy mode: use Agent.Upload directly, exactly like the original img/ layout.
 		if dest == "azure" {

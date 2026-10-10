@@ -181,3 +181,31 @@ func TestUploadResp_DeleteURLNoLoopback(t *testing.T) {
 	t.Logf("delete_url = %q", resp.DeleteURL)
 	t.Logf("url = %q (R2_PUBLIC_URL unset, falls back to public base)", resp.URL)
 }
+
+// TestDestFromRequest_Query query 参数（向后兼容旧消费方）
+func TestDestFromRequest_Query(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/upload?dest=r2", nil)
+	if got := destFromRequest(c); got != "r2" {
+		t.Errorf("destFromRequest() = %q, want %q", got, "r2")
+	}
+}
+
+// TestDestFromRequest_Path 路径形态 /api/upload/<dest>（无 query 参数）
+func TestDestFromRequest_Path(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/upload/local", nil)
+	c.Params = gin.Params{{Key: "fn", Value: "/local"}}
+	if got := destFromRequest(c); got != "local" {
+		t.Errorf("destFromRequest() = %q, want %q", got, "local")
+	}
+}
+
+// TestDestFromRequest_Empty 无 query 无 path → 空（走默认后端）
+func TestDestFromRequest_Empty(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/upload", nil)
+	if got := destFromRequest(c); got != "" {
+		t.Errorf("destFromRequest() = %q, want empty", got)
+	}
+}

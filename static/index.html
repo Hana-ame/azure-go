@@ -236,7 +236,8 @@
     const ENDPOINT = document.location.origin;
     const isLocalDev = ['localhost', '127.0.0.1', '[::1]', '0.0.0.0'].includes(location.hostname);
     const DEST = new URLSearchParams(location.search).get('dest') || (isLocalDev ? 'local' : '');
-    const DEST_QUERY = DEST ? '?dest=' + DEST : '';
+    // 路径形态，上传请求无 query 参数
+    const UPLOAD_PATH = DEST ? `/api/upload/${DEST}` : '/api/upload';
 
     document.addEventListener('DOMContentLoaded', () => {
       const body = document.body;
@@ -364,7 +365,7 @@
 
         const formData = new FormData();
         formData.append('file', fileToUpload);
-        fetch(ENDPOINT + `/api/upload${DEST_QUERY}`, {
+        fetch(ENDPOINT + UPLOAD_PATH, {
           method: 'POST',
           body: formData,
         })
