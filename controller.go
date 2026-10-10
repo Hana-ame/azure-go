@@ -42,6 +42,49 @@ func requestBaseURL(c *gin.Context) string {
 	return scheme + "://" + host
 }
 
+// defaultPublicBaseURL is used when the request Host resolves to a private or
+// loopback address (reverse proxy forwarding an internal Host) and no
+// PUBLIC_BASE_URL is configured. Generated links must point at a host the
+// client can actually reach, not the proxy's internal address.
+const defaultPublicBaseURL = "https://upload.moonchan.xyz"
+
+// publicBaseURL returns the externally-reachable base URL for generated
+// response links (url, delete_url). Precedence:
+//  1. PUBLIC_BASE_URL env (explicit public domain, e.g. https://upload.moonchan.xyz)
+//  2. defaultPublicBaseURL when the request Host is a private/loopback address
+//  3. requestBaseURL(c) otherwise (keeps local dev without env working)
+func publicBaseURL(c *gin.Context) string {
+	if base := os.Getenv("PUBLIC_BASE_URL"); base != "" {
+		return strings.TrimRight(base, "/")
+	}
+	host := c.Request.Host
+	hostOnly := strings.SplitN(host, ":", 2)[0]
+	if isPrivateHost(hostOnly) {
+		return defaultPublicBaseURL
+	}
+	return requestBaseURL(c)
+}
+
+// isPrivateHost reports whether host is a loopback or RFC1918 private address,
+// which must never appear in a URL handed to an external client.
+func isPrivateHost(host string) bool {
+	switch host {
+	case "", "localhost", "0.0.0.0", "::1", "[::1]":
+		return true
+	}
+	if strings.HasPrefix(host, "127.") || strings.HasPrefix(host, "10.") || strings.HasPrefix(host, "192.168.") {
+		return true
+	}
+	if strings.HasPrefix(host, "172.") {
+		if parts := strings.Split(host, "."); len(parts) >= 2 {
+			if n, err := strconv.Atoi(parts[1]); err == nil && n >= 16 && n <= 31 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func uploadResp(c *gin.Context, path string, dest string, result *storage.PutResult) {
 	h := hash(path)
 	o := orderedmap.New()
@@ -51,7 +94,7 @@ func uploadResp(c *gin.Context, path string, dest string, result *storage.PutRes
 	if dest == "azure" && result != nil {
 		// OneDrive item ID from upstream; delete key is hash of the ID
 		id := result.ID
-		reqBase := requestBaseURL(c)
+		reqBase := publicBaseURL(c)
 		o.Set("id", id)
 		o.Set("key", hash(id))
 		o.Set("path", "/api/"+id)
@@ -68,7 +111,7 @@ func uploadResp(c *gin.Context, path string, dest string, result *storage.PutRes
 		return
 	}
 
-	reqBase := requestBaseURL(c)
+	reqBase := publicBaseURL(c)
 
 	if dest == "local" {
 		publicURL := os.Getenv("LOCAL_PUBLIC_URL")
@@ -88,8 +131,21 @@ func uploadResp(c *gin.Context, path string, dest string, result *storage.PutRes
 	c.JSON(http.StatusOK, o)
 }
 
+// effectiveDest resolves the actual upload backend for a request.
+// An explicit ?dest= always wins; with no dest, the default is azure
+// (falling back to r2 only when azure is unavailable, e.g. local dev).
+func effectiveDest(dest string) string {
+	if dest == "" {
+		if azureDisabled || azureDriver == nil {
+			return "r2"
+		}
+		return "azure"
+	}
+	return dest
+}
+
 func ensureDriver(c *gin.Context) bool {
-	dest := c.Query("dest")
+	dest := effectiveDest(c.Query("dest"))
 	if dest == "local" {
 		if localDriver == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "local storage not configured"})
@@ -119,7 +175,7 @@ func ensureDriver(c *gin.Context) bool {
 }
 
 func uploadDriver(c *gin.Context) storage.StorageDriver {
-	dest := c.Query("dest")
+	dest := effectiveDest(c.Query("dest"))
 	if dest == "local" {
 		return localDriver
 	}
@@ -141,8 +197,10 @@ func Upload(c *gin.Context) {
 	ContentType := c.GetHeader("Content-Type")
 	body := c.Request.Body
 
+	dest := effectiveDest(c.Query("dest"))
+
 	// Azure legacy mode: use Agent.Upload directly, exactly like the original img/ layout.
-	if c.Query("dest") == "azure" {
+	if dest == "azure" {
 		resp, err := agent.Upload(ContentType, c.GetHeader("Content-Length"), body)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, err)
@@ -170,7 +228,7 @@ func Upload(c *gin.Context) {
 		path = result.Path
 	}
 
-	uploadResp(c, path, c.Query("dest"), result)
+	uploadResp(c, path, dest, result)
 }
 
 var Deleted = tools.NewLRUCache[string, int64](256)
@@ -457,8 +515,10 @@ func CreateUploadSession(c *gin.Context) {
 		}
 		defer file.Close()
 
+		dest := effectiveDest(c.Query("dest"))
+
 		// Azure legacy mode: use Agent.Upload directly, exactly like the original img/ layout.
-		if c.Query("dest") == "azure" {
+		if dest == "azure" {
 			resp, err := agent.Upload(header.Header.Get("Content-Type"), strconv.FormatInt(header.Size, 10), file)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, err)
@@ -487,7 +547,7 @@ func CreateUploadSession(c *gin.Context) {
 			path = result.Path
 		}
 
-		uploadResp(c, path, c.Query("dest"), result)
+		uploadResp(c, path, dest, result)
 		return
 	}
 	Upload(c)
