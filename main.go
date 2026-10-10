@@ -173,6 +173,7 @@ func main() {
 	r.PUT("/api/upload", Upload)
 	r.PUT("/api/upload/*fn", Upload)
 	r.POST("/api/upload", CreateUploadSession)
+	r.POST("/api/upload/*fn", CreateUploadSession)
 	r.GET("/api/:id/*fn", Get)
 	r.DELETE("/api/:id/:key", Delete) // 不能这么做的样子
 	r.GET("/api/delete/:id/:key", DeleteWithKey)
