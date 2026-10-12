@@ -16,6 +16,7 @@ import (
 	"github.com/Hana-ame/azure-go/Tools/myiter"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/myfetch"
+	"github.com/Hana-ame/azure-go/psda1proxy"
 	localfs "github.com/Hana-ame/azure-go/storage/local"
 	p_sda1_dev "github.com/Hana-ame/azure-go/storage/p_sda1_dev"
 	"github.com/Hana-ame/azure-go/storage/r2"
@@ -30,6 +31,8 @@ import (
 var agent *Agent
 var r2Driver *r2.Driver
 var r2PublicURL string
+var psda1ProxyDriver *psda1proxy.Driver
+var psda1ProxyHandler *psda1proxy.ProxyHandler
 
 const Version = "v26.08.19"
 
@@ -149,6 +152,11 @@ func main() {
 	pSda1DevDriver = p_sda1_dev.New()
 	log.Printf("[Init] p.sda1.dev driver initialized")
 
+	// p.sda1.dev proxy module: China IP check + format validation + error caching
+	psda1ProxyDriver = psda1proxy.New()
+	psda1ProxyHandler = psda1proxy.NewProxyHandler()
+	log.Printf("[Init] psda1proxy driver + proxy handler initialized")
+
 	// Deamon
 	if !azureDisabled {
 		go func() {
@@ -184,8 +192,11 @@ func main() {
 	// Local filesystem access: GET /local/path?delete=key
 	r.GET("/local/*path", LocalFile)
 
-	// p.sda1.dev proxy: GET /p.sda1.dev/path
+	// p.sda1.dev proxy: GET /p.sda1.dev/path (legacy, direct)
 	r.GET("/p.sda1.dev/*path", P_sda1_devFile)
+
+	// p.sda1.dev proxy: GET /api/p.sda1.dev/path (new, with error caching)
+	r.GET("/api/p.sda1.dev/*path", psda1ProxyHandler.Handle)
 
 	// Static files (embedded)
 	r.GET("/", func(c *gin.Context) {

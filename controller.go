@@ -106,7 +106,11 @@ func uploadResp(c *gin.Context, path string, dest string, result *storage.PutRes
 
 	if dest == "p.sda1.dev" {
 		o.Set("path", "/p.sda1.dev/"+path)
-		o.Set("url", "https://p.sda1.dev/"+path)
+		// Upload URL: proxied through /api/p.sda1.dev (with error caching)
+		reqBase := publicBaseURL(c)
+		o.Set("url", reqBase+"/api/p.sda1.dev/"+path)
+		// Delete URL: direct to p.sda1.dev (NOT proxied)
+		o.Set("delete_url", "https://p.sda1.dev/"+path)
 		c.JSON(http.StatusOK, o)
 		return
 	}
@@ -168,7 +172,7 @@ func ensureDriver(c *gin.Context) bool {
 		return true
 	}
 	if dest == "p.sda1.dev" {
-		if pSda1DevDriver == nil {
+		if psda1ProxyDriver == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "p.sda1.dev storage not configured"})
 			return false
 		}
@@ -194,7 +198,7 @@ func uploadDriver(c *gin.Context) storage.StorageDriver {
 		return localDriver
 	}
 	if dest == "p.sda1.dev" {
-		return pSda1DevDriver
+		return psda1ProxyDriver
 	}
 	if dest == "azure" {
 		return azureDriver
