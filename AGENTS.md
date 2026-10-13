@@ -1,6 +1,6 @@
 # AGENTS.md — Azure Go (onedrive-cf)
 
-## Project State (v26.10.13)
+## Project State (v26.10.14)
 
 ### Architecture
 - **Language**: Go 1.23.3, CGO_ENABLED=0 for static builds
@@ -113,7 +113,7 @@
 - Azure upload restored to legacy `Agent.Upload` path: `img/{ts}-{uuid}{ext}`, no `{ts}/` folder
 - Unified upload response: `id` reserved for Azure; R2/local/p.sda1.dev use empty `id`
 - Version bumped to v26.08.19
-- Dest-less default is **type-routed**, no longer a single backend. `/api/upload` (PUT/POST) with no `?dest=` and no `/api/upload/<dest>` now resolves via `defaultDestFromHint()`: **webp / jpg / jpeg / png / gif → `p.sda1.dev`**, everything else (**avif**, non-images, unknown or missing types) → `r2`. Extension is checked before content type (multipart parts can omit `Content-Type`); `avif` is deliberately excluded. An explicit `?dest=` or path dest still always wins. `effectiveDest(dest, filename, contentType)`, `ensureDriver(c, dest)` and `uploadDriver(dest)` now take an already-resolved dest so the handler computes it exactly once. Reason: the previous dest-less default was OneDrive, whose quota was exceeded (state `exceeded`, remaining 0), so every dest-less web upload failed with 500.
+- Version bumped to v26.10.14: Added GIF magic-byte detection to ValidateImage; removed China IP check requirement from psda1proxy; added README caution forbidding non-image uploads to PSDA1.
 
 ### Next Steps (suggested)
 - [ ] Set up systemd service for auto-restart
