@@ -152,7 +152,7 @@ func main() {
 	pSda1DevDriver = p_sda1_dev.New()
 	log.Printf("[Init] p.sda1.dev driver initialized")
 
-	// p.sda1.dev proxy module: China IP check + format validation + error caching
+	// p.sda1.dev proxy module: format validation + error caching
 	psda1ProxyDriver = psda1proxy.New()
 	psda1ProxyHandler = psda1proxy.NewProxyHandler()
 	log.Printf("[Init] psda1proxy driver + proxy handler initialized")

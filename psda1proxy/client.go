@@ -1,7 +1,6 @@
 // Package psda1proxy implements a p.sda1.dev proxy upload module with:
 //   - Local IPv4 only (no proxy, no IPv6)
-//   - China IP verification
-//   - Magic-byte format validation (webp/jpg/png only, avif rejected)
+//   - Magic-byte format validation (webp/jpg/png/gif only, avif/non-images rejected)
 //   - HTTP proxy with 20-minute error caching
 package psda1proxy
 
