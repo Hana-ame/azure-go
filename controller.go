@@ -135,17 +135,40 @@ func uploadResp(c *gin.Context, path string, dest string, result *storage.PutRes
 	c.JSON(http.StatusOK, o)
 }
 
-// effectiveDest resolves the actual upload backend for a request.
-// An explicit ?dest= always wins; with no dest, the default is azure
-// (falling back to r2 only when azure is unavailable, e.g. local dev).
-func effectiveDest(dest string) string {
-	if dest == "" {
-		if azureDisabled || azureDriver == nil {
-			return "r2"
-		}
-		return "azure"
+// Image types a dest-less upload sends to p.sda1.dev, matched by file
+// extension first and content type second. Everything else — avif,
+// non-images, unknown or missing types — goes to r2.
+var pSda1ImageExts = map[string]bool{
+	".webp": true, ".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
+}
+
+var pSda1ImageTypes = map[string]bool{
+	"image/webp": true, "image/jpeg": true, "image/jpg": true,
+	"image/png": true, "image/gif": true,
+}
+
+// defaultDestFromHint picks the backend for an upload that carries no explicit
+// dest. Extension wins over content type: a multipart part may omit its
+// Content-Type while the file name always carries an extension. avif is
+// deliberately excluded and falls through to r2.
+func defaultDestFromHint(filename, contentType string) string {
+	if ext := strings.ToLower(filepath.Ext(filename)); pSda1ImageExts[ext] {
+		return "p.sda1.dev"
 	}
-	return dest
+	if ct := strings.ToLower(strings.Split(contentType, ";")[0]); pSda1ImageTypes[ct] {
+		return "p.sda1.dev"
+	}
+	return "r2"
+}
+
+// effectiveDest resolves the actual upload backend for a request. An explicit
+// dest (?dest= or /api/upload/<dest>) always wins; with no dest the backend is
+// chosen from the file type — see defaultDestFromHint.
+func effectiveDest(dest, filename, contentType string) string {
+	if dest != "" {
+		return dest
+	}
+	return defaultDestFromHint(filename, contentType)
 }
 
 // destFromRequest resolves the upload destination from the request,
@@ -162,8 +185,7 @@ func destFromRequest(c *gin.Context) string {
 	return ""
 }
 
-func ensureDriver(c *gin.Context) bool {
-	dest := effectiveDest(destFromRequest(c))
+func ensureDriver(c *gin.Context, dest string) bool {
 	if dest == "local" {
 		if localDriver == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "local storage not configured"})
@@ -192,8 +214,7 @@ func ensureDriver(c *gin.Context) bool {
 	return true
 }
 
-func uploadDriver(c *gin.Context) storage.StorageDriver {
-	dest := effectiveDest(destFromRequest(c))
+func uploadDriver(dest string) storage.StorageDriver {
 	if dest == "local" {
 		return localDriver
 	}
@@ -208,14 +229,17 @@ func uploadDriver(c *gin.Context) storage.StorageDriver {
 
 // note: it works when local
 func Upload(c *gin.Context) {
-	if !ensureDriver(c) {
+	ContentType := c.GetHeader("Content-Type")
+	// The path form /api/upload/<dest> puts the dest in Param("fn"). That is
+	// only non-empty when the dest is explicit, so it never leaks into the
+	// type hint used for dest-less requests.
+	hintFn := strings.TrimPrefix(c.Param("fn"), "/")
+	dest := effectiveDest(destFromRequest(c), hintFn, ContentType)
+	if !ensureDriver(c, dest) {
 		return
 	}
 
-	ContentType := c.GetHeader("Content-Type")
 	body := c.Request.Body
-
-	dest := effectiveDest(destFromRequest(c))
 
 	// Azure legacy mode: use Agent.Upload directly, exactly like the original img/ layout.
 	if dest == "azure" {
@@ -230,13 +254,13 @@ func Upload(c *gin.Context) {
 	}
 
 	ts := strconv.Itoa(int(time.Now().Unix()))
-	fn := strings.TrimPrefix(c.Param("fn"), "/")
+	fn := hintFn
 	if fn == "" || fn == "/" {
 		fn = uuid.New().String()[:8] + contentTypeToExtend(ContentType)
 	}
 	path := ts + "/" + fn
 
-	drv := uploadDriver(c)
+	drv := uploadDriver(dest)
 	result, err := drv.Put(path, ContentType, body)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
@@ -520,10 +544,6 @@ func P_sda1_devFile(c *gin.Context) {
 }
 
 func CreateUploadSession(c *gin.Context) {
-	if !ensureDriver(c) {
-		return
-	}
-
 	ct := c.GetHeader("Content-Type")
 	if strings.HasPrefix(ct, "multipart/form-data") {
 		file, header, err := c.Request.FormFile("file")
@@ -533,11 +553,17 @@ func CreateUploadSession(c *gin.Context) {
 		}
 		defer file.Close()
 
-		dest := effectiveDest(destFromRequest(c))
+		// The multipart part header carries the real file name and content
+		// type; the request Content-Type is only multipart/form-data here.
+		partCT := header.Header.Get("Content-Type")
+		dest := effectiveDest(destFromRequest(c), header.Filename, partCT)
+		if !ensureDriver(c, dest) {
+			return
+		}
 
 		// Azure legacy mode: use Agent.Upload directly, exactly like the original img/ layout.
 		if dest == "azure" {
-			resp, err := agent.Upload(header.Header.Get("Content-Type"), strconv.FormatInt(header.Size, 10), file)
+			resp, err := agent.Upload(partCT, strconv.FormatInt(header.Size, 10), file)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, err)
 				return
@@ -549,14 +575,14 @@ func CreateUploadSession(c *gin.Context) {
 
 		fn := header.Filename
 		if fn == "" {
-			fn = uuid.New().String()[:8] + contentTypeToExtend(header.Header.Get("Content-Type"))
+			fn = uuid.New().String()[:8] + contentTypeToExtend(partCT)
 		}
 
 		ts := strconv.Itoa(int(time.Now().Unix()))
 		path := ts + "/" + fn
 
-		drv := uploadDriver(c)
-		result, err := drv.Put(path, header.Header.Get("Content-Type"), file)
+		drv := uploadDriver(dest)
+		result, err := drv.Put(path, partCT, file)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, err)
 			return

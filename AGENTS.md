@@ -1,6 +1,6 @@
 # AGENTS.md — Azure Go (onedrive-cf)
 
-## Project State (v26.08.19)
+## Project State (v26.10.13)
 
 ### Architecture
 - **Language**: Go 1.23.3, CGO_ENABLED=0 for static builds
@@ -24,10 +24,10 @@
 
 | Backend | Driver | Env Vars | Purpose |
 |---------|--------|----------|---------|
-| **OneDrive** | `Agent` (azure_drive.go) | tenent_id, client_id, ..., access_token | Legacy read/delete via Graph API |
-| **Cloudflare R2** | `r2.Driver` (storage/r2/) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | Default upload destination (bucket: `r2-moonchan`, public: `r2.moonchan.xyz`) |
+| **OneDrive** | `Agent` (azure_drive.go) | tenent_id, client_id, ..., access_token | `?dest=azure` uploads; legacy read/delete via Graph API. **Never the dest-less default** — the OneDrive quota is exceeded, so a dest-less upload must not land here |
+| **Cloudflare R2** | `r2.Driver` (storage/r2/) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | `?dest=r2` uploads, and the dest-less default for anything that is not webp/jpg/jpeg/png/gif (bucket: `r2-moonchan`, public: `r2.moonchan.xyz`) |
 | **Local filesystem** | `localfs.Driver` (storage/local/) | `LOCAL_STORAGE_PATH` (default `.`), `LOCAL_PUBLIC_URL` | `?dest=local` uploads |
-| **p.sda1.dev** | `p_sda1_dev.Driver` (storage/p_sda1_dev/) | — (always available) | `?dest=p.sda1.dev` uploads, proxies to p.sda1.dev API |
+| **p.sda1.dev** | `p_sda1_dev.Driver` (storage/p_sda1_dev/) | — (always available) | `?dest=p.sda1.dev` uploads, and the dest-less default for webp/jpg/jpeg/png/gif. Proxy to p.sda1.dev API |
 
 ### API Routes
 
@@ -113,6 +113,7 @@
 - Azure upload restored to legacy `Agent.Upload` path: `img/{ts}-{uuid}{ext}`, no `{ts}/` folder
 - Unified upload response: `id` reserved for Azure; R2/local/p.sda1.dev use empty `id`
 - Version bumped to v26.08.19
+- Dest-less default is **type-routed**, no longer a single backend. `/api/upload` (PUT/POST) with no `?dest=` and no `/api/upload/<dest>` now resolves via `defaultDestFromHint()`: **webp / jpg / jpeg / png / gif → `p.sda1.dev`**, everything else (**avif**, non-images, unknown or missing types) → `r2`. Extension is checked before content type (multipart parts can omit `Content-Type`); `avif` is deliberately excluded. An explicit `?dest=` or path dest still always wins. `effectiveDest(dest, filename, contentType)`, `ensureDriver(c, dest)` and `uploadDriver(dest)` now take an already-resolved dest so the handler computes it exactly once. Reason: the previous dest-less default was OneDrive, whose quota was exceeded (state `exceeded`, remaining 0), so every dest-less web upload failed with 500.
 
 ### Next Steps (suggested)
 - [ ] Set up systemd service for auto-restart
