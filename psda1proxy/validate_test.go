@@ -138,11 +138,26 @@ func TestValidateImage_HEIC_Rejected(t *testing.T) {
 	}
 }
 
-func TestValidateImage_GIF_Rejected(t *testing.T) {
+func TestValidateImage_GIF_Accepted(t *testing.T) {
 	data := makeGIF()
-	_, ok := ValidateImageBuffer(data)
-	if ok {
-		t.Error("expected GIF to be rejected, got accepted")
+	format, ok := ValidateImageBuffer(data)
+	if !ok {
+		t.Fatal("expected GIF to be valid, got invalid")
+	}
+	if format != "gif" {
+		t.Errorf("format = %q, want \"gif\"", format)
+	}
+}
+
+func TestValidateImage_GIF87a_Accepted(t *testing.T) {
+	// GIF87a header variant
+	data := []byte{'G', 'I', 'F', '8', '7', 'a', 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00}
+	format, ok := ValidateImageBuffer(data)
+	if !ok {
+		t.Fatal("expected GIF87a to be valid, got invalid")
+	}
+	if format != "gif" {
+		t.Errorf("format = %q, want \"gif\"", format)
 	}
 }
 
@@ -193,8 +208,9 @@ func TestValidateImage_ErrInvalidFormat(t *testing.T) {
 	}
 	if !strings.Contains(ErrInvalidFormat.Error(), "webp") ||
 		!strings.Contains(ErrInvalidFormat.Error(), "jpg") ||
-		!strings.Contains(ErrInvalidFormat.Error(), "png") {
-		t.Error("ErrInvalidFormat message should mention webp, jpg, png")
+		!strings.Contains(ErrInvalidFormat.Error(), "png") ||
+		!strings.Contains(ErrInvalidFormat.Error(), "gif") {
+		t.Error("ErrInvalidFormat message should mention webp, jpg, png, gif")
 	}
 	if !strings.Contains(ErrInvalidFormat.Error(), "avif") {
 		t.Error("ErrInvalidFormat message should mention avif rejection")
