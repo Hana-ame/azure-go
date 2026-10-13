@@ -31,7 +31,7 @@ var agent *Agent
 var r2Driver *r2.Driver
 var r2PublicURL string
 
-const Version = "v26.08.19"
+const Version = "v26.10.13"
 
 func main_with_redirect() {
 
