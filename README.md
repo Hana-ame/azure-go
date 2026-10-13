@@ -1,6 +1,12 @@
 # Moonchan Upload Server
 
-Go 图片/文件上传服务，支持 R2 (Cloudflare) 和本地文件系统双后端。
+Go 图片/文件上传服务，支持 R2 (Cloudflare)、本地文件系统及 p.sda1.dev (PSDA1) 后端。
+
+> [!CAUTION]
+> ### ⚠️ 绝对禁止上传任何非图片内容到 PSDA1 (p.sda1.dev)！
+> - **PSDA1 存储后端仅限图片文件**（WebP / JPEG / PNG / GIF）。
+> - **严禁**上传任何非图片文件（包括但不限于文档、文本、压缩包、音视频、脚本、可执行文件等）。
+> - **严禁**通过伪造文件后缀名的方式绕过限制；服务端会对数据内容的前导魔数（Magic Bytes）进行严格字节级校验，非图片文件将直接被拦截拒绝并报错。
 
 ## 快速开始
 
@@ -109,6 +115,7 @@ python upload.py -a photo.jpg        # 自动上传，无需确认
 
 ```
 客户端 → nginx (443) → Go 服务 (8080)
-                        ├── R2 (默认)
-                        └── 本地文件系统 (?dest=local)
+                        ├── R2
+                        ├── 本地文件系统 (?dest=local)
+                        └── PSDA1 (p.sda1.dev，严格仅限图片)
 ```
