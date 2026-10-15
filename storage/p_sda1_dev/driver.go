@@ -33,7 +33,7 @@ func New() *Driver {
 	return &Driver{
 		baseURL: "https://p.sda1.dev",
 		apiURL:  "https://p.sda1.dev/api/v1/upload_external_noform",
-		client:  http.DefaultClient,
+		client:  newHTTPClient(),
 	}
 }
 
