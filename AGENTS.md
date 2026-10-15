@@ -1,6 +1,6 @@
 # AGENTS.md — Azure Go (onedrive-cf)
 
-## Project State (v26.10.14)
+## Project State (v26.10.16)
 
 ### Architecture
 - **Language**: Go 1.23.3, CGO_ENABLED=0 for static builds
@@ -114,6 +114,8 @@
 - Unified upload response: `id` reserved for Azure; R2/local/p.sda1.dev use empty `id`
 - Version bumped to v26.08.19
 - Version bumped to v26.10.14: Added GIF magic-byte detection to ValidateImage; removed China IP check requirement from psda1proxy; added README caution forbidding non-image uploads to PSDA1.
+- Version bumped to v26.10.16: `storage/p_sda1_dev` now uses a dedicated IPv4-only `http.Client` (`newHTTPClient()` in `client.go`: inline `tcp4` `DialContext` + `Proxy: nil`) instead of `http.DefaultClient`. Fixes Cloudflare 403 "error code: 1106" on dual-homed hosts, where RFC 6724 address sorting made `DefaultClient` dial the AAAA record first. Transport is inlined rather than imported from `psda1proxy` to avoid an import cycle (`psda1proxy/driver.go` already imports `p_sda1_dev`); the two copies must be kept in sync. Covers `TestNewHTTPClient_ReachesIPv4Server`, `TestNewHTTPClient_CannotReachIPv6OnlyServer`, `TestNew_ConfirmsConfig`.
+  - Note: tag v26.10.15 was withdrawn. It was cut from a tree that had lost all 4 v26.10.14 commits (GIF support, China-IP-check removal, README caution, version bump) — a force push had been validated against a stale local `origin/main` ref instead of a freshly fetched one. v26.10.16 is the rebased cut that restores them.
 
 ### Next Steps (suggested)
 - [ ] Set up systemd service for auto-restart
