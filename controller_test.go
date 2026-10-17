@@ -20,12 +20,10 @@ func TestMain(m *testing.M) {
 
 // TestTypeByExtension 使用表驱动的方式测试 mime.TypeByExtension 函数
 func TestTypeByExtension(t *testing.T) {
-	// 定义测试用例的结构体
-	// 每个测试用例包含：一个描述性名称、输入值和期望的输出值
 	tests := []struct {
-		name     string // 测试用例的名称
-		ext      string // 输入的扩展名
-		expected string // 期望返回的 MIME 类型
+		name     string
+		ext      string
+		expected string
 	}{
 		{
 			name:     "Standard WebP extension",
@@ -33,43 +31,31 @@ func TestTypeByExtension(t *testing.T) {
 			expected: "image/webp",
 		},
 		{
-			name:     "Empty extension", // 修正后的测试：空扩展名应返回空 MIME 类型
+			name:     "Empty extension",
 			ext:      "",
 			expected: "",
 		},
-		// {
-		// 	name:     "Extension without leading dot", // 增加一个边界情况测试
-		// 	ext:      "webp",
-		// 	expected: "image/webp",
-		// },
 		{
-			name:     "Uppercase extension", // 增加大小写不敏感测试
+			name:     "Uppercase extension",
 			ext:      ".WEBP",
 			expected: "image/webp",
 		},
 		{
-			name:     "Another known extension", // 增加其他类型的测试
+			name:     "Another known extension",
 			ext:      ".json",
 			expected: "application/json",
 		},
 		{
-			name:     "Unknown extension", // 增加未知扩展名的测试
+			name:     "Unknown extension",
 			ext:      ".notarealext",
 			expected: "",
 		},
 	}
 
-	// 遍历所有测试用例
 	for _, tt := range tests {
-		// t.Run 会为每个测试用例创建一个子测试
-		// 这使得在测试失败时，输出结果更加清晰
 		t.Run(tt.name, func(t *testing.T) {
-			// 执行被测试的函数
 			r := mime.TypeByExtension(tt.ext)
-
-			// 检查实际结果是否与期望结果相符
 			if r != tt.expected {
-				// 如果不符，使用 t.Errorf 报告错误，它会标记测试失败并输出详细信息
 				t.Errorf("mime.TypeByExtension(%q) got %q, want %q", tt.ext, r, tt.expected)
 			}
 		})
@@ -147,7 +133,6 @@ func TestPublicBaseURL_EnvOverride(t *testing.T) {
 }
 
 // TestUploadResp_DeleteURLNoLoopback 回归：内网 Host 时 delete_url 不得含回环地址。
-// 修复前（requestBaseURL）此测试失败；修复后（publicBaseURL）通过。
 func TestUploadResp_DeleteURLNoLoopback(t *testing.T) {
 	os.Unsetenv("PUBLIC_BASE_URL")
 	os.Unsetenv("R2_PUBLIC_URL")
@@ -178,8 +163,6 @@ func TestUploadResp_DeleteURLNoLoopback(t *testing.T) {
 	if !strings.HasPrefix(resp.DeleteURL, defaultPublicBaseURL+"/r2/") {
 		t.Errorf("delete_url = %q, want prefix %q/r2/", resp.DeleteURL, defaultPublicBaseURL)
 	}
-	t.Logf("delete_url = %q", resp.DeleteURL)
-	t.Logf("url = %q (R2_PUBLIC_URL unset, falls back to public base)", resp.URL)
 }
 
 // TestDestFromRequest_Query query 参数（向后兼容旧消费方）
@@ -207,5 +190,41 @@ func TestDestFromRequest_Empty(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/upload", nil)
 	if got := destFromRequest(c); got != "" {
 		t.Errorf("destFromRequest() = %q, want empty", got)
+	}
+}
+
+// TestDefaultDestFromHint 验证 webp/png/jpg/jpeg/gif/bmp 默认走 p.sda1.dev，其余走 r2
+func TestDefaultDestFromHint(t *testing.T) {
+	cases := []struct {
+		filename    string
+		contentType string
+		want        string
+	}{
+		{"a.webp", "image/webp", "p.sda1.dev"},
+		{"a.png", "image/png", "p.sda1.dev"},
+		{"a.jpg", "image/jpeg", "p.sda1.dev"},
+		{"a.jpeg", "image/jpeg", "p.sda1.dev"},
+		{"a.gif", "image/gif", "p.sda1.dev"},
+		{"a.bmp", "image/bmp", "p.sda1.dev"},
+		{"", "image/bmp", "p.sda1.dev"},
+		{"a.avif", "image/avif", "r2"},
+		{"archive.zip", "application/zip", "r2"},
+		{"doc.pdf", "application/pdf", "r2"},
+		{"", "application/octet-stream", "r2"},
+	}
+	for _, tc := range cases {
+		if got := defaultDestFromHint(tc.filename, tc.contentType); got != tc.want {
+			t.Errorf("defaultDestFromHint(%q, %q) = %q, want %q", tc.filename, tc.contentType, got, tc.want)
+		}
+	}
+}
+
+// TestEffectiveDest_AzureIgnored 验证 azure 不再用于上传，退回默认路由规则
+func TestEffectiveDest_AzureIgnored(t *testing.T) {
+	if got := effectiveDest("azure", "pic.png", "image/png"); got != "p.sda1.dev" {
+		t.Errorf("effectiveDest(azure, pic.png) = %q, want p.sda1.dev", got)
+	}
+	if got := effectiveDest("azure", "pic.avif", "image/avif"); got != "r2" {
+		t.Errorf("effectiveDest(azure, pic.avif) = %q, want r2", got)
 	}
 }

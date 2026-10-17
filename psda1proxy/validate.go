@@ -7,24 +7,18 @@ import (
 )
 
 // ValidateImage inspects the magic bytes at the start of the stream and
-// returns the detected format ("png", "jpg", "webp", "gif") and true when
-// the file is one of the four accepted types. Any other format – including
-// AVIF, HEIC, BMP, TIFF – returns ("", false).
+// returns the detected format ("png", "jpg", "webp", "gif", "bmp") and true when
+// the file is one of the five accepted types. Any other format – including
+// AVIF, HEIC, TIFF – returns ("", false).
 //
-// This is a byte-level check; file extensions and Content-Type headers
-// are intentionally ignored because they are trivially spoofable.
-//
-// Format signatures (RFC 2083 / JFIF / libwebp / GIF spec):
+// Format signatures:
 //
 //	PNG    89 50 4E 47 0D 0A 1A 0A          (137,80,78,71,13,10,26,10)
 //	JPEG   FF D8 FF                          (255,216,255)
 //	WebP   52 49 46 4F [size:4] 57 45 42 50  ("RIFF" … "WEBP")
 //	GIF87a 47 49 46 38 37 61                 ("GIF87a")
 //	GIF89a 47 49 46 38 39 61                 ("GIF89a")
-//	AVIF   52 49 46 4F [size:4] 66 74 79 70  ("RIFF" … "ftyp" … "avif")
-//
-// We read up to 16 bytes, which is enough to identify every supported
-// format and to distinguish WebP from other RIFF-based codecs.
+//	BMP    42 4D                             ("BM")
 func ValidateImage(r io.Reader) (format string, ok bool) {
 	buf := make([]byte, 16)
 	n, _ := io.ReadFull(r, buf)
@@ -58,18 +52,21 @@ func ValidateImage(r io.Reader) (format string, ok bool) {
 		buf[0] == 'G' && buf[1] == 'I' && buf[2] == 'F' && buf[3] == '8' &&
 		(buf[4] == '7' || buf[4] == '9') && buf[5] == 'a':
 		return "gif", true
+
+	// BMP: 2-byte signature "BM" (plus minimum 14-byte BMP file header)
+	case n >= 6 && buf[0] == 'B' && buf[1] == 'M':
+		return "bmp", true
 	}
 
 	return "", false
 }
 
 // ValidateImageBuffer is a convenience wrapper that validates an
-// in-memory byte slice (useful in tests and in the Driver.Put method
-// where the body has already been read into memory).
+// in-memory byte slice.
 func ValidateImageBuffer(data []byte) (format string, ok bool) {
 	return ValidateImage(bytes.NewReader(data))
 }
 
 // ErrInvalidFormat is returned when the uploaded file is not one of
-// webp / jpg / png / gif.
-var ErrInvalidFormat = fmt.Errorf("psda1proxy: invalid image format: only webp, jpg, png, gif are accepted (avif and other formats rejected)")
+// webp / jpg / png / gif / bmp.
+var ErrInvalidFormat = fmt.Errorf("psda1proxy: invalid image format: only webp, jpg, png, gif, bmp are accepted (avif and other formats rejected)")

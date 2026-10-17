@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -91,19 +92,6 @@ func uploadResp(c *gin.Context, path string, dest string, result *storage.PutRes
 	o.Set("id", "")
 	o.Set("path", "/"+path)
 
-	if dest == "azure" && result != nil {
-		// OneDrive item ID from upstream; delete key is hash of the ID
-		id := result.ID
-		reqBase := publicBaseURL(c)
-		o.Set("id", id)
-		o.Set("key", hash(id))
-		o.Set("path", "/api/"+id)
-		o.Set("url", reqBase+"/api/"+id+"/")
-		o.Set("delete_url", reqBase+"/api/delete/"+id+"/"+hash(id))
-		c.JSON(http.StatusOK, o)
-		return
-	}
-
 	if dest == "p.sda1.dev" {
 		o.Set("path", "/p.sda1.dev/"+path)
 		reqBase := publicBaseURL(c)
@@ -133,52 +121,112 @@ func uploadResp(c *gin.Context, path string, dest string, result *storage.PutRes
 	c.JSON(http.StatusOK, o)
 }
 
-// Image types a dest-less upload sends to p.sda1.dev, matched by file
-// extension first and content type second. Everything else — avif,
-// non-images, unknown or missing types — goes to r2.
+// Image types a dest-less upload sends to p.sda1.dev (webp, png, jpg/jpeg, gif, bmp),
+// matched by file extension first and content type second. Everything else —
+// avif, non-images, unknown or missing types — goes to r2.
 var pSda1ImageExts = map[string]bool{
-	".webp": true, ".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
+	".webp": true,
+	".png":  true,
+	".jpg":  true,
+	".jpeg": true,
+	".gif":  true,
+	".bmp":  true,
 }
 
 var pSda1ImageTypes = map[string]bool{
-	"image/webp": true, "image/jpeg": true, "image/jpg": true,
-	"image/png": true, "image/gif": true,
+	"image/webp":     true,
+	"image/png":      true,
+	"image/jpeg":     true,
+	"image/jpg":      true,
+	"image/gif":      true,
+	"image/bmp":      true,
+	"image/x-bmp":    true,
+	"image/x-ms-bmp": true,
 }
 
 // defaultDestFromHint picks the backend for an upload that carries no explicit
-// dest. Extension wins over content type: a multipart part may omit its
-// Content-Type while the file name always carries an extension. avif is
-// deliberately excluded and falls through to r2.
+// dest. Default is p.sda1.dev for webp/png/jpg/jpeg/gif/bmp; all other formats
+// fall back to r2.
 func defaultDestFromHint(filename, contentType string) string {
-	if ext := strings.ToLower(filepath.Ext(filename)); pSda1ImageExts[ext] {
-		return "p.sda1.dev"
+	if ext := strings.ToLower(filepath.Ext(filename)); ext != "" {
+		if pSda1ImageExts[ext] {
+			return "p.sda1.dev"
+		}
+		return "r2"
 	}
-	if ct := strings.ToLower(strings.Split(contentType, ";")[0]); pSda1ImageTypes[ct] {
+	if ct := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0])); pSda1ImageTypes[ct] {
 		return "p.sda1.dev"
 	}
 	return "r2"
 }
 
-// effectiveDest resolves the actual upload backend for a request. An explicit
-// dest (?dest= or /api/upload/<dest>) always wins; with no dest the backend is
-// chosen from the file type — see defaultDestFromHint.
+// effectiveDest resolves the actual upload backend for a request.
+// Azure is no longer used for uploads; if dest is empty or "azure", the backend
+// is chosen from the file type via defaultDestFromHint.
 func effectiveDest(dest, filename, contentType string) string {
-	if dest != "" {
+	if dest != "" && dest != "azure" {
 		return dest
 	}
 	return defaultDestFromHint(filename, contentType)
 }
 
+var validUploadDests = map[string]bool{
+	"p.sda1.dev": true,
+	"r2":         true,
+	"local":      true,
+}
+
+// parseUploadPath splits Param("fn") into an optional explicit destination
+// ("local", "r2", "p.sda1.dev") and an optional filename.
+func parseUploadPath(rawFn string) (dest, filename string) {
+	trimmed := strings.Trim(rawFn, "/")
+	if trimmed == "" {
+		return "", ""
+	}
+	if validUploadDests[trimmed] {
+		return trimmed, ""
+	}
+	if parts := strings.SplitN(trimmed, "/", 2); len(parts) == 2 && validUploadDests[parts[0]] {
+		return parts[0], filepath.Base(parts[1])
+	}
+	return "", filepath.Base(trimmed)
+}
+
 // destFromRequest resolves the upload destination from the request,
-// supporting both path form (/api/upload/<dest>, no query params) and
-// the legacy query form (?dest=<dest>). Path takes precedence so the
-// frontend can drop query params entirely.
+// supporting both path form (/api/upload/<dest> or /api/upload/<dest>/<fn>)
+// and query form (?dest=<dest>).
 func destFromRequest(c *gin.Context) string {
 	if q := c.Query("dest"); q != "" {
 		return q
 	}
-	if fn := c.Param("fn"); fn != "" {
-		return strings.TrimPrefix(fn, "/")
+	dest, _ := parseUploadPath(c.Param("fn"))
+	return dest
+}
+
+// filenameFromRequest extracts the original filename from the URL path, query,
+// X-File-Name header, or Content-Disposition header without reading the body.
+func filenameFromRequest(c *gin.Context) string {
+	if _, fn := parseUploadPath(c.Param("fn")); fn != "" && fn != "." && fn != "/" {
+		if decoded, err := url.QueryUnescape(fn); err == nil && decoded != "" {
+			return filepath.Base(decoded)
+		}
+		return fn
+	}
+	if q := c.Query("filename"); q != "" {
+		return filepath.Base(q)
+	}
+	if hdr := c.GetHeader("X-File-Name"); hdr != "" {
+		if decoded, err := url.QueryUnescape(hdr); err == nil && decoded != "" {
+			return filepath.Base(decoded)
+		}
+		return filepath.Base(hdr)
+	}
+	if cd := c.GetHeader("Content-Disposition"); cd != "" {
+		if _, params, err := mime.ParseMediaType(cd); err == nil {
+			if fn := params["filename"]; fn != "" {
+				return filepath.Base(fn)
+			}
+		}
 	}
 	return ""
 }
@@ -192,15 +240,8 @@ func ensureDriver(c *gin.Context, dest string) bool {
 		return true
 	}
 	if dest == "p.sda1.dev" {
-		if psda1ProxyDriver == nil {
+		if pSda1DevDriver == nil && psda1ProxyDriver == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "p.sda1.dev storage not configured"})
-			return false
-		}
-		return true
-	}
-	if dest == "azure" {
-		if azureDisabled || azureDriver == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "azure storage not configured"})
 			return false
 		}
 		return true
@@ -217,51 +258,35 @@ func uploadDriver(dest string) storage.StorageDriver {
 		return localDriver
 	}
 	if dest == "p.sda1.dev" {
+		if pSda1DevDriver != nil {
+			return pSda1DevDriver
+		}
 		return psda1ProxyDriver
-	}
-	if dest == "azure" {
-		return azureDriver
 	}
 	return r2Driver
 }
 
-// note: it works when local
+// Upload streams the raw request body directly to the target backend without
+// multipart parsing or in-memory buffering.
 func Upload(c *gin.Context) {
 	ContentType := c.GetHeader("Content-Type")
-	// The path form /api/upload/<dest> puts the dest in Param("fn"). That is
-	// only non-empty when the dest is explicit, so it never leaks into the
-	// type hint used for dest-less requests.
-	hintFn := strings.TrimPrefix(c.Param("fn"), "/")
+	hintFn := filenameFromRequest(c)
 	dest := effectiveDest(destFromRequest(c), hintFn, ContentType)
 	if !ensureDriver(c, dest) {
 		return
 	}
 
-	body := c.Request.Body
-
-	// Azure legacy mode: use Agent.Upload directly, exactly like the original img/ layout.
-	if dest == "azure" {
-		resp, err := agent.Upload(ContentType, c.GetHeader("Content-Length"), body)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, err)
-			return
-		}
-		id, _ := resp.GetOrDefault("id", "").(string)
-		uploadResp(c, "", "azure", &storage.PutResult{ID: id})
-		return
-	}
-
 	ts := strconv.Itoa(int(time.Now().Unix()))
 	fn := hintFn
-	if fn == "" || fn == "/" {
+	if fn == "" || fn == "/" || fn == "." {
 		fn = uuid.New().String()[:8] + contentTypeToExtend(ContentType)
 	}
 	path := ts + "/" + fn
 
 	drv := uploadDriver(dest)
-	result, err := drv.Put(path, ContentType, body)
+	result, err := drv.Put(path, ContentType, c.Request.Body)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	if result != nil && result.Path != "" {
@@ -269,6 +294,10 @@ func Upload(c *gin.Context) {
 	}
 
 	uploadResp(c, path, dest, result)
+}
+
+func CreateUploadSession(c *gin.Context) {
+	Upload(c)
 }
 
 var Deleted = tools.NewLRUCache[string, int64](256)
@@ -315,18 +344,10 @@ func Get(c *gin.Context) {
 
 	// 1. 检查缓存中是否标记为已删除
 	if timestamp, ok := Deleted.Get(id); ok {
-		// 如果 当前时间 > (记录时间 + 过期时长)，说明缓存已过期，不再拦截
-		// 或者你的逻辑是：只要在过期时间内，就拦截？
-		// 你的原代码：timestamp + delta < now
-		// 意思是：如果 (记录时间 + 1.8秒) 小于 当前时间 ——> 即记录时间是很久以前的
-		// 也就说：只有 1.8 秒内的记录会被认为是“未过期”并拦截？这看起来像是在防抖动。
-
-		// 修正后的逻辑：如果是想封禁30分钟
 		if tools.NewTimeStamp() < timestamp+CacheExpireDelta {
 			c.Redirect(http.StatusFound, os.Getenv("default"))
 			return
 		}
-		// 如果超过时间了，可能想重试？或者应该从 Cache 中移除？
 	}
 
 	// 2. 请求上游
@@ -334,16 +355,6 @@ func Get(c *gin.Context) {
 
 	// 3. 错误处理
 	if err != nil {
-		// 记录日志，不要直接把 err 给前端
-		// fmt.Printf("Error getting file %s: %v\n", id, err)
-
-		// if strings.Contains(err.Error(), "connection reset by peer") {
-		// 	// 避免死循环，最好限制重试次数，或者直接返回 502
-		// 	c.String(http.StatusBadGateway, "Upstream connection reset, please try again.")
-		// 	return
-		// }
-
-		// c.String(http.StatusInternalServerError, "Internal Service Error")
 		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -353,11 +364,6 @@ func Get(c *gin.Context) {
 
 	// 4. 检查上游是否返回了特定的错误 JSON (Soft 404)
 	if contentType == "application/json; odata.metadata=minimal; odata.streaming=true; IEEE754Compatible=false; charset=utf-8" {
-		// 标记为已删除
-		// Deleted.Put(id, tools.NewTimeStamp())
-
-		// 文件不存在/已删除，直接重定向到默认图，忽略 body
-		// c.Redirect(http.StatusFound, os.Getenv("default"))
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -539,60 +545,6 @@ func P_sda1_devFile(c *gin.Context) {
 	c.DataFromReader(http.StatusOK, size, contentType, file, map[string]string{
 		"Content-Disposition": "inline",
 	})
-}
-
-func CreateUploadSession(c *gin.Context) {
-	ct := c.GetHeader("Content-Type")
-	if strings.HasPrefix(ct, "multipart/form-data") {
-		file, header, err := c.Request.FormFile("file")
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "no file in form"})
-			return
-		}
-		defer file.Close()
-
-		// The multipart part header carries the real file name and content
-		// type; the request Content-Type is only multipart/form-data here.
-		partCT := header.Header.Get("Content-Type")
-		dest := effectiveDest(destFromRequest(c), header.Filename, partCT)
-		if !ensureDriver(c, dest) {
-			return
-		}
-
-		// Azure legacy mode: use Agent.Upload directly, exactly like the original img/ layout.
-		if dest == "azure" {
-			resp, err := agent.Upload(partCT, strconv.FormatInt(header.Size, 10), file)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, err)
-				return
-			}
-			id, _ := resp.GetOrDefault("id", "").(string)
-			uploadResp(c, "", "azure", &storage.PutResult{ID: id})
-			return
-		}
-
-		fn := header.Filename
-		if fn == "" {
-			fn = uuid.New().String()[:8] + contentTypeToExtend(partCT)
-		}
-
-		ts := strconv.Itoa(int(time.Now().Unix()))
-		path := ts + "/" + fn
-
-		drv := uploadDriver(dest)
-		result, err := drv.Put(path, partCT, file)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, err)
-			return
-		}
-		if result != nil && result.Path != "" {
-			path = result.Path
-		}
-
-		uploadResp(c, path, dest, result)
-		return
-	}
-	Upload(c)
 }
 
 func hash(s string) string {

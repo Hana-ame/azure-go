@@ -8,10 +8,9 @@ import (
 
 // Helper: create a valid PNG file (minimal 1×1 transparent PNG).
 func makePNG() []byte {
-	// Minimal valid PNG: IHDR + IDAT + IEND with a 1×1 transparent pixel.
 	return []byte{
-		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // signature
-		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
 		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
 		0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
 		0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41,
@@ -25,17 +24,17 @@ func makePNG() []byte {
 // Helper: create a valid JPEG file (minimal 1×1 black JPEG).
 func makeJPEG() []byte {
 	return []byte{
-		0xFF, 0xD8, 0xFF, 0xE0, // SOI + APP0
-		0x00, 0x10, // APP0 length
-		'J', 'F', 'I', 'F', 0x00, // "JFIF\0"
-		0x01, 0x01, // version
-		0x00, // units
-		0x00, 0x01, 0x00, 0x01, // density
-		0x00, 0x00, // thumbnail
-		0xFF, 0xDB, // DQT
-		0x00, 0x43, // length
-		0x00, // precision
-		0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, // data (truncated but valid header)
+		0xFF, 0xD8, 0xFF, 0xE0,
+		0x00, 0x10,
+		'J', 'F', 'I', 'F', 0x00,
+		0x01, 0x01,
+		0x00,
+		0x00, 0x01, 0x00, 0x01,
+		0x00, 0x00,
+		0xFF, 0xDB,
+		0x00, 0x43,
+		0x00,
+		0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
 		0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
 	}
 }
@@ -43,13 +42,13 @@ func makeJPEG() []byte {
 // Helper: create a valid WebP file (RIFF + WEBP).
 func makeWebP() []byte {
 	return []byte{
-		'R', 'I', 'F', 'F', // RIFF
-		0x24, 0x00, 0x00, 0x00, // file size (36 bytes)
-		'W', 'E', 'B', 'P', // WEBP
-		'V', 'P', '8', 0x00, // VP8 version
-		0x1A, 0x00, 0x00, 0x00, // chunk size
-		0x2F, // VP8 keyframe
-		0x01, 0x00, 0x00, // frame tag
+		'R', 'I', 'F', 'F',
+		0x24, 0x00, 0x00, 0x00,
+		'W', 'E', 'B', 'P',
+		'V', 'P', '8', 0x00,
+		0x1A, 0x00, 0x00, 0x00,
+		0x2F,
+		0x01, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	}
 }
@@ -57,22 +56,22 @@ func makeWebP() []byte {
 // Helper: create an AVIF file (RIFF + ftyp + avif).
 func makeAVIF() []byte {
 	return []byte{
-		'R', 'I', 'F', 'F', // RIFF
-		0x20, 0x00, 0x00, 0x00, // file size
-		'f', 't', 'y', 'p', // ftyp
-		'a', 'v', 'i', 'f', // brand "avif"
-		0x00, 0x00, 0x00, 0x00, // minor version
-		'a', 'v', 'i', 'f', 'm', 'i', 'f', 0x31, // compatible brands
+		'R', 'I', 'F', 'F',
+		0x20, 0x00, 0x00, 0x00,
+		'f', 't', 'y', 'p',
+		'a', 'v', 'i', 'f',
+		0x00, 0x00, 0x00, 0x00,
+		'a', 'v', 'i', 'f', 'm', 'i', 'f', 0x31,
 	}
 }
 
 // Helper: create a HEIC file (RIFF + ftyp + heic).
 func makeHEIC() []byte {
 	return []byte{
-		'R', 'I', 'F', 'F', // RIFF
+		'R', 'I', 'F', 'F',
 		0x20, 0x00, 0x00, 0x00,
-		'f', 't', 'y', 'p', // ftyp
-		'h', 'e', 'i', 'c', // brand "heic"
+		'f', 't', 'y', 'p',
+		'h', 'e', 'i', 'c',
 		0x00, 0x00, 0x00, 0x00,
 		'h', 'e', 'i', 'c', 'm', 'i', 'f', 0x31,
 	}
@@ -81,11 +80,22 @@ func makeHEIC() []byte {
 // Helper: create a GIF file.
 func makeGIF() []byte {
 	return []byte{
-		'G', 'I', 'F', 0x38, 0x39, 0x61, // "GIF89a"
-		0x01, 0x00, 0x01, 0x00, // dimensions
-		0x80, // GCT flag
-		0x00, 0x00, //
+		'G', 'I', 'F', 0x38, 0x39, 0x61,
+		0x01, 0x00, 0x01, 0x00,
+		0x80,
+		0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	}
+}
+
+// Helper: create a BMP file header.
+func makeBMP() []byte {
+	return []byte{
+		'B', 'M',
+		0x36, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x36, 0x00, 0x00, 0x00,
+		0x28, 0x00, 0x00, 0x00,
 	}
 }
 
@@ -150,7 +160,6 @@ func TestValidateImage_GIF_Accepted(t *testing.T) {
 }
 
 func TestValidateImage_GIF87a_Accepted(t *testing.T) {
-	// GIF87a header variant
 	data := []byte{'G', 'I', 'F', '8', '7', 'a', 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00}
 	format, ok := ValidateImageBuffer(data)
 	if !ok {
@@ -158,6 +167,17 @@ func TestValidateImage_GIF87a_Accepted(t *testing.T) {
 	}
 	if format != "gif" {
 		t.Errorf("format = %q, want \"gif\"", format)
+	}
+}
+
+func TestValidateImage_BMP_Accepted(t *testing.T) {
+	data := makeBMP()
+	format, ok := ValidateImageBuffer(data)
+	if !ok {
+		t.Fatal("expected BMP to be valid, got invalid")
+	}
+	if format != "bmp" {
+		t.Errorf("format = %q, want \"bmp\"", format)
 	}
 }
 
@@ -169,7 +189,6 @@ func TestValidateImage_EmptyFile_Rejected(t *testing.T) {
 }
 
 func TestValidateImage_TooShort_Rejected(t *testing.T) {
-	// Only 4 bytes – not enough for any format
 	_, ok := ValidateImageBuffer([]byte{0x89, 0x50, 0x4E, 0x47})
 	if ok {
 		t.Error("expected truncated PNG to be rejected")
@@ -177,11 +196,10 @@ func TestValidateImage_TooShort_Rejected(t *testing.T) {
 }
 
 func TestValidateImage_RIFF_NotWebP_Rejected(t *testing.T) {
-	// RIFF container but with "WAVE" instead of "WEBP"
 	data := []byte{
 		'R', 'I', 'F', 'F',
 		0x20, 0x00, 0x00, 0x00,
-		'W', 'A', 'V', 'E', // RIFF/WAVE (audio, not image)
+		'W', 'A', 'V', 'E',
 		0x00, 0x00, 0x00, 0x00,
 	}
 	_, ok := ValidateImageBuffer(data)
@@ -191,7 +209,6 @@ func TestValidateImage_RIFF_NotWebP_Rejected(t *testing.T) {
 }
 
 func TestValidateImage_BufferReader(t *testing.T) {
-	// ValidateImage with a bytes.Reader (io.Reader interface)
 	data := makePNG()
 	format, ok := ValidateImage(bytes.NewReader(data))
 	if !ok {
@@ -209,8 +226,9 @@ func TestValidateImage_ErrInvalidFormat(t *testing.T) {
 	if !strings.Contains(ErrInvalidFormat.Error(), "webp") ||
 		!strings.Contains(ErrInvalidFormat.Error(), "jpg") ||
 		!strings.Contains(ErrInvalidFormat.Error(), "png") ||
-		!strings.Contains(ErrInvalidFormat.Error(), "gif") {
-		t.Error("ErrInvalidFormat message should mention webp, jpg, png, gif")
+		!strings.Contains(ErrInvalidFormat.Error(), "gif") ||
+		!strings.Contains(ErrInvalidFormat.Error(), "bmp") {
+		t.Error("ErrInvalidFormat message should mention webp, jpg, png, gif, bmp")
 	}
 	if !strings.Contains(ErrInvalidFormat.Error(), "avif") {
 		t.Error("ErrInvalidFormat message should mention avif rejection")

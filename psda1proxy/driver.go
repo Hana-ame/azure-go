@@ -1,8 +1,6 @@
 package psda1proxy
 
 import (
-	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -10,9 +8,8 @@ import (
 	psda1 "github.com/Hana-ame/azure-go/storage/p_sda1_dev"
 )
 
-// Driver implements storage.StorageDriver for p.sda1.dev with:
-//   - Magic-byte format validation (webp/jpg/png/gif only)
-//   - Upload via the underlying p_sda1_dev driver
+// Driver implements storage.StorageDriver for p.sda1.dev by streaming directly
+// to the underlying p_sda1_dev driver.
 type Driver struct {
 	uploader *psda1.Driver
 	client   *http.Client
@@ -20,7 +17,7 @@ type Driver struct {
 
 // New creates a new psda1proxy Driver.
 // The driver uses a no-proxy, IPv4-only HTTP client.
-// Uploads are delegated to the standard p_sda1_dev driver.
+// Uploads are delegated directly to the standard p_sda1_dev driver.
 func New() *Driver {
 	return &Driver{
 		uploader: psda1.New(),
@@ -28,25 +25,11 @@ func New() *Driver {
 	}
 }
 
-// Put validates the image format (magic bytes), then uploads
-// to p.sda1.dev.
+// Put streams the raw body directly to p.sda1.dev without buffering in memory.
 //
 // Returns the storage path assigned by p.sda1.dev (PutResult.Path).
 func (d *Driver) Put(path, contentType string, body io.Reader) (*storage.PutResult, error) {
-	// 1. Read body so we can inspect magic bytes AND upload the same data.
-	buf, err := io.ReadAll(body)
-	if err != nil {
-		return nil, fmt.Errorf("psda1proxy: read body: %w", err)
-	}
-
-	// 2. Validate format (reject avif, bmp, heic, non-images, etc.)
-	format, ok := ValidateImage(bytes.NewReader(buf))
-	if !ok {
-		return nil, fmt.Errorf("%w – detected format: %q", ErrInvalidFormat, format)
-	}
-
-	// 3. Delegate to the underlying p.sda1.dev driver
-	return d.uploader.Put(path, contentType, bytes.NewReader(buf))
+	return d.uploader.Put(path, contentType, body)
 }
 
 // Get delegates to the underlying driver (used by legacy /p.sda1.dev/*path

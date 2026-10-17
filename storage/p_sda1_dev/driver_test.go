@@ -14,15 +14,11 @@ import (
 )
 
 // pngHeader is a valid PNG signature (psda1proxy.ValidateImage accepts it).
-var pngHeader = []byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x04, 0x01, 0x02, 0x03, 0x04}
+var pngHeader = []byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x01, 0x02, 0x03, 0x04}
 
 // webpHeader is a valid RIFF....WEBP header.
 var webpHeader = []byte("RIFF\x00\x00\x00\x00WEBPVP8 ")
 
-// makeEnvelope wraps payload in a multipart/form-data envelope the way the old
-// driver did: field name "image", a filename, and the file bytes inside.
-// filename == "" builds a plain form field instead (CreateFormField), which
-// has no filename attribute.
 func makeEnvelope(partName, filename string, payload []byte) []byte {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
@@ -49,178 +45,7 @@ func makeEnvelope(partName, filename string, payload []byte) []byte {
 	return buf.Bytes()
 }
 
-// boundaryOf recovers the boundary from the first line of an envelope.
-func boundaryOf(envelope []byte) string {
-	line := string(envelope)
-	if i := strings.Index(line, "\r\n"); i >= 0 {
-		return strings.TrimPrefix(line[:i], "--")
-	}
-	return ""
-}
-
-// --- extractBody: what the driver sends upstream ---
-
-func TestExtractBody_PassesThroughRawBody(t *testing.T) {
-	out, ct, err := extractBody("image/png", bytes.NewReader(pngHeader))
-	if err != nil {
-		t.Fatalf("extractBody: %v", err)
-	}
-	if got, _ := io.ReadAll(out); !bytes.Equal(got, pngHeader) {
-		t.Errorf("bytes = %v, want untouched %v", got, pngHeader)
-	}
-	if ct != "image/png" {
-		t.Errorf("content type = %q, want image/png", ct)
-	}
-}
-
-func TestExtractBody_PassesThroughWhenContentTypeEmpty(t *testing.T) {
-	out, ct, err := extractBody("", bytes.NewReader(pngHeader))
-	if err != nil {
-		t.Fatalf("extractBody: %v", err)
-	}
-	if got, _ := io.ReadAll(out); !bytes.Equal(got, pngHeader) {
-		t.Errorf("bytes = %v, want untouched %v", got, pngHeader)
-	}
-	if ct != "application/octet-stream" {
-		t.Errorf("content type = %q, want application/octet-stream", ct)
-	}
-}
-
-func TestExtractBody_PassesThroughWhenNoBoundary(t *testing.T) {
-	// Declared multipart but no boundary we can parse with: pass through rather
-	// than guess at an envelope layout.
-	envelope := makeEnvelope("image", "f.png", pngHeader)
-	out, ct, err := extractBody("multipart/form-data", bytes.NewReader(envelope))
-	if err != nil {
-		t.Fatalf("extractBody: %v", err)
-	}
-	if got, _ := io.ReadAll(out); !bytes.Equal(got, envelope) {
-		t.Error("expected the envelope to pass through unchanged")
-	}
-	// A multipart Content-Type must never leave with raw body bytes — that
-	// would reintroduce exactly the envelope bug.
-	if ct != "application/octet-stream" {
-		t.Errorf("content type = %q, want application/octet-stream", ct)
-	}
-}
-
-func TestExtractBody_UnwrapsMultipartEnvelope(t *testing.T) {
-	// The regression: the old driver fabricated an envelope around clean image
-	// bytes, p.sda1.dev stored the envelope, and reads returned it instead of an
-	// image.
-	envelope := makeEnvelope("image", "1792228850/photo.png", pngHeader)
-
-	out, gotCT, err := extractBody("multipart/form-data; boundary="+boundaryOf(envelope),
-		bytes.NewReader(envelope))
-	if err != nil {
-		t.Fatalf("extractBody: %v", err)
-	}
-	got, _ := io.ReadAll(out)
-	if !bytes.Equal(got, pngHeader) {
-		t.Errorf("unwrapped bytes = %q, want the original image bytes %q", got, pngHeader)
-	}
-	if !bytes.HasPrefix(got, []byte{0x89, 'P', 'N', 'G'}) {
-		t.Errorf("unwrapped bytes do not start with the PNG signature: %q", got[:8])
-	}
-	if gotCT != "application/octet-stream" {
-		t.Errorf("content type = %q, want application/octet-stream from the part", gotCT)
-	}
-}
-
-func TestExtractBody_PrefersFilePartOverTextField(t *testing.T) {
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	if fw, err := w.CreateFormField("note"); err != nil {
-		panic(err)
-	} else if _, err := fw.Write([]byte("hello")); err != nil {
-		panic(err)
-	}
-	if fw, err := w.CreateFormFile("image", "1792228850/a.webp"); err != nil {
-		panic(err)
-	} else if _, err := fw.Write(webpHeader); err != nil {
-		panic(err)
-	}
-	if err := w.Close(); err != nil {
-		panic(err)
-	}
-
-	out, _, err := extractBody(w.FormDataContentType(), bytes.NewReader(buf.Bytes()))
-	if err != nil {
-		t.Fatalf("extractBody: %v", err)
-	}
-	if got, _ := io.ReadAll(out); !bytes.Equal(got, webpHeader) {
-		t.Errorf("unwrapped = %q, want the file part %q (not the text field)", got, webpHeader)
-	}
-}
-
-func TestExtractBody_UnwrapsFieldNameWithoutFilename(t *testing.T) {
-	// A part created with CreateFormField has no filename; "image" is still the
-	// field name this driver has always used, so it must be picked.
-	envelope := makeEnvelope("image", "", pngHeader)
-
-	out, _, err := extractBody("multipart/form-data; boundary="+boundaryOf(envelope),
-		bytes.NewReader(envelope))
-	if err != nil {
-		t.Fatalf("extractBody: %v", err)
-	}
-	if got, _ := io.ReadAll(out); !bytes.Equal(got, pngHeader) {
-		t.Errorf("unwrapped = %q, want %q", got, pngHeader)
-	}
-}
-
-func TestExtractBody_PrefersImageNameWhenNeitherPartHasFilename(t *testing.T) {
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	if fw, err := w.CreateFormField("note"); err != nil {
-		panic(err)
-	} else if _, err := fw.Write([]byte("text")); err != nil {
-		panic(err)
-	}
-	if fw, err := w.CreateFormField("image"); err != nil {
-		panic(err)
-	} else if _, err := fw.Write(pngHeader); err != nil {
-		panic(err)
-	}
-	if err := w.Close(); err != nil {
-		panic(err)
-	}
-
-	out, _, err := extractBody(w.FormDataContentType(), bytes.NewReader(buf.Bytes()))
-	if err != nil {
-		t.Fatalf("extractBody: %v", err)
-	}
-	if got, _ := io.ReadAll(out); !bytes.Equal(got, pngHeader) {
-		t.Errorf("unwrapped = %q, want the part named \"image\"", got)
-	}
-}
-
-func TestExtractBody_EmptyMultipartErrors(t *testing.T) {
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	if err := w.Close(); err != nil {
-		panic(err)
-	}
-	if _, _, err := extractBody(w.FormDataContentType(), bytes.NewReader(buf.Bytes())); err == nil {
-		t.Fatal("expected an error for a multipart body with no parts")
-	}
-}
-
-func TestNormaliseContentType(t *testing.T) {
-	cases := map[string]string{
-		"image/webp":                        "image/webp",
-		"":                                  "application/octet-stream",
-		"multipart/form-data; boundary=abc": "application/octet-stream",
-		"multipart/form-data":               "application/octet-stream",
-		"text/plain; charset=utf-8":         "text/plain; charset=utf-8",
-	}
-	for in, want := range cases {
-		if got := normaliseContentType(in); got != want {
-			t.Errorf("normaliseContentType(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
-// --- StripEnvelope: reading back objects the old driver stored ---
+// --- StripEnvelope: reading back legacy objects ---
 
 func TestStripEnvelope_RemovesOneLayer(t *testing.T) {
 	envelope := makeEnvelope("image", "1792228850/photo.png", pngHeader)
@@ -238,7 +63,6 @@ func TestStripEnvelope_RemovesOneLayer(t *testing.T) {
 }
 
 func TestStripEnvelope_RemovesNestedLayers(t *testing.T) {
-	// A doubly-wrapped object: envelope around envelope around the image.
 	inner := makeEnvelope("image", "a.png", pngHeader)
 	outer := makeEnvelope("image", "b.png", inner)
 
@@ -273,8 +97,6 @@ func TestStripEnvelope_PassesThroughPlainText(t *testing.T) {
 }
 
 func TestStripEnvelope_IgnoresBinaryContainingBoundarySequence(t *testing.T) {
-	// Real image data can contain "\r\n--"; it must never be mis-sliced. The
-	// guard is that an envelope must START with "--<boundary>\r\n".
 	payload := append(append([]byte{}, pngHeader...), []byte("\r\n--not-a-boundary\r\n")...)
 	clean, ok := StripEnvelope(payload)
 	if ok {
@@ -297,9 +119,8 @@ func TestStripEnvelope_ShortInput(t *testing.T) {
 	}
 }
 
-// --- Put: the bytes that actually leave the process ---
+// --- Put: raw streaming directly to upstream ---
 
-// testDriver wires a Driver at an httptest server standing in for p.sda1.dev.
 func testDriver(ts *httptest.Server) *Driver {
 	return &Driver{
 		baseURL: ts.URL,
@@ -319,7 +140,7 @@ func okUploadResponse(path string) []byte {
 	return b
 }
 
-func TestPut_PostsRawBodyNotEnvelope(t *testing.T) {
+func TestPut_PostsRawBodyDirectly(t *testing.T) {
 	var gotBody []byte
 	var gotCT, gotFilename string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -343,14 +164,10 @@ func TestPut_PostsRawBodyNotEnvelope(t *testing.T) {
 		t.Errorf("upstream received %d bytes starting %q, want exactly the image bytes",
 			len(gotBody), gotBody[:min(len(gotBody), 24)])
 	}
-	if bytes.Contains(gotBody, []byte("Content-Disposition")) {
-		t.Error("upstream received a multipart envelope, not the file")
-	}
 	if gotCT != "image/png" {
 		t.Errorf("content type = %q, want image/png", gotCT)
 	}
 	if gotFilename != "photo.png" {
-		// filename must be the last path segment, not the whole ts/name path.
 		t.Errorf("filename query = %q, want \"photo.png\"", gotFilename)
 	}
 
@@ -364,35 +181,6 @@ func TestPut_PostsRawBodyNotEnvelope(t *testing.T) {
 	wantETag := `"` + hex.EncodeToString(sum[:]) + `"`
 	if res.ETag != wantETag {
 		t.Errorf("PutResult.ETag = %q, want md5 of the image bytes %q", res.ETag, wantETag)
-	}
-}
-
-func TestPut_UnwrapsIncomingMultipart(t *testing.T) {
-	// Defence in depth: a caller that hands the driver an envelope must still
-	// result in clean bytes upstream.
-	envelope := makeEnvelope("image", "1792228850/photo.png", pngHeader)
-
-	var gotBody []byte
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var err error
-		gotBody, err = io.ReadAll(r.Body)
-		if err != nil {
-			t.Errorf("read body: %v", err)
-		}
-		w.Write(okUploadResponse("1792228850/photo.png"))
-	}))
-	defer ts.Close()
-
-	if _, err := testDriver(ts).Put("1792228850/photo.png",
-		"multipart/form-data; boundary="+boundaryOf(envelope), bytes.NewReader(envelope)); err != nil {
-		t.Fatalf("Put: %v", err)
-	}
-
-	if !bytes.Equal(gotBody, pngHeader) {
-		t.Errorf("upstream received %q, want the image bytes %q", gotBody, pngHeader)
-	}
-	if bytes.Contains(gotBody, []byte("Content-Disposition")) {
-		t.Error("upstream still received an envelope")
 	}
 }
 
@@ -422,8 +210,6 @@ func TestPut_UpstreamSuccessFalse(t *testing.T) {
 // --- Get: legacy envelope objects are stripped, clean objects pass through ---
 
 func TestGet_StripsLegacyEnvelope(t *testing.T) {
-	// An object the old driver stored: the envelope, with the header lying about
-	// its content type.
 	envelope := makeEnvelope("image", "1792228850/photo.png", pngHeader)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -445,11 +231,8 @@ func TestGet_StripsLegacyEnvelope(t *testing.T) {
 	if !bytes.Equal(got, pngHeader) {
 		t.Errorf("got %q, want the image bytes %q", got, pngHeader)
 	}
-	if bytes.Contains(got, []byte("Content-Disposition")) {
-		t.Error("body still contains the envelope")
-	}
 	if size != int64(len(pngHeader)) {
-		t.Errorf("size = %d, want %d (the clean body, not the envelope)", size, len(pngHeader))
+		t.Errorf("size = %d, want %d", size, len(pngHeader))
 	}
 	if ct != "image/png" {
 		t.Errorf("content type = %q, want image/png", ct)

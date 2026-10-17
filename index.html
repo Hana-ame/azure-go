@@ -1,104 +1,494 @@
 <!DOCTYPE html>
-    <head>
-      <title>another piece of shit</title>
-      <style type="text/css">
-        .item {
-          clear: both;
-        }
-        img {
-          margin: 24px;
-          width: 150px;
-          max-height: 300px;
-          float: left;
-        }
-        input {
-          padding: 8px;
-          width: 600px;
-        }
-        .inner {
-          margin: 8px;
-        }
-        .wrapper {
-          margin-left: 200px;
-        }
-        </style>
-    </head>
-    <body id="body">
-    
-      <div id="wrap">
-        <label for="input">Choose a picture (you can also use Ctrl+v):</label>
-        <input type="file"
-              id="input" name="img"
-              accept="image/*"
-              multiple />
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>图片/文件上传 (w/ AVIF/WEBP)</title>
+  <link rel="manifest" href="/manifest.json">
+  <style type="text/css">
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f4f4f9;
+      margin: 0;
+      padding: 24px;
+      min-height: 100vh;
+      box-sizing: border-box;
+      transition: background-color 0.3s ease;
+    }
+
+    body.drag-over {
+      background-color: #d0d0d0;
+    }
+
+    #upload-area {
+      margin-bottom: 24px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .upload-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .compression-group {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .file-label {
+      font-weight: bold;
+    }
+
+    .compress-option {
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+        color: #333;
+        cursor: pointer;
+        background: #eef2f5;
+        padding: 6px 12px;
+        border-radius: 4px;
+    }
+    .compress-option input {
+        margin-right: 8px;
+        cursor: pointer;
+    }
+
+    #copy-all-button {
+        padding: 8px 16px;
+        font-size: 14px;
+        border: none;
+        border-radius: 4px;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    #copy-all-button:hover {
+        background-color: #0056b3;
+    }
+    #copy-all-button:active {
+        background-color: #004085;
+    }
+
+    .tips-link {
+      color: #007bff;
+      text-decoration: none;
+      font-size: 14px;
+      display: inline-block;
+      margin-top: 8px;
+    }
+
+    .tips-link:hover {
+      text-decoration: underline;
+    }
+
+    #items-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .item {
+      display: flex;
+      align-items: center;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      padding: 16px;
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+
+    .item img {
+      width: 150px;
+      height: 150px;
+      object-fit: contain;
+      margin-right: 24px;
+      border-radius: 4px;
+      background-color: #eee;
+    }
+
+    .item .info-wrapper {
+      flex-grow: 1;
+    }
+
+    .item .info-group {
+      margin-bottom: 12px;
+    }
+
+    .item .info-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .item label {
+      display: block;
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    .item .status-info {
+        font-weight: normal; 
+        color: #007bff;
+        font-size: 12px;
+        margin-left: 8px;
+    }
+    .item .status-info.warning {
+        color: #ffa000;
+    }
+
+    .item input[type="text"] {
+      padding: 8px;
+      width: 100%;
+      max-width: 600px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      font-size: 14px;
+      transition: background-color 0.3s;
+    }
+
+    .status-text {
+        color: #666;
+        font-style: italic;
+    }
+  </style>
+</head>
+
+<body>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js');
+    }
+  </script>
+  <div id="upload-area">
+    <div class="upload-controls">
+      <div>
+        <label for="file-input" class="file-label">选择文件 (支持拖拽/Ctrl+V):</label>
+        <input type="file" id="file-input" name="img" multiple />
       </div>
-    
-      <div id="div">
-    
+
+      <div class="compression-group" title="使用高性能 WASM 库进行图片压缩。仅当转换后体积变小时才会生效。">
+        <label class="compress-option">
+          <input type="radio" name="compression-type" value="avif">
+          <span> AVIF</span>
+        </label>
+        <label class="compress-option">
+          <input type="radio" name="compression-type" value="webp" checked>
+          <span> WEBP</span>
+        </label>
+        <label class="compress-option">
+          <input type="radio" name="compression-type" value="none">
+          <span>不压缩</span>
+        </label>
+        <input placeholder="召唤键盘" />
       </div>
-      <script>
-        base = document.location.href;
-        function handleFile(file){      
-          if (file){ // do nothing when paste texts.
-            console.log(file);
-            console.log(file.type); // 'image/png', while paste a picture.
-            if (file.type.startsWith("image") || file.type.startsWith("audio")) {
-    
-              const element = document.getElementById('div');
-              let div = document.createElement('div');
-              div.className = 'item';
-              let img = document.createElement('img');
-              
-              div.appendChild(img);
-              let divWrapper = document.createElement('div');
-              divWrapper.className = 'wrapper';
-              let urlTag = document.createElement('div');
-              urlTag.className = 'inner';
-              urlTag.innerText = '图片链接';
-              divWrapper.appendChild(urlTag);
-              let urlLink = document.createElement('input');
-              urlLink.onmouseover = function(){urlLink.select();};
-              
-              divWrapper.appendChild(urlLink);
-              let delTag = document.createElement('div');
-              delTag.className = 'inner';
-              delTag.innerText = '删除链接';
-              divWrapper.appendChild(delTag);
-              let delLink = document.createElement('input');
-              delLink.onmouseover = function(){delLink.select();};
-              
-              divWrapper.appendChild(delLink);
-              div.appendChild(divWrapper);
-              element.insertBefore(div, element.firstChild);
-    
-              fetch(`${base}api/upload`, {
-                method: 'PUT',
-                body: file,
-              }).then(r=>r.json())
-              .then( resp => {
-                img.src = `${base}api/${resp.id}/${file.name}`;
-                urlLink.value = `${base}api/${resp.id}/${file.name}`;
-                delLink.value = `${base}api/delete/${resp.id}/${resp.hash}`;
-              } )        
+
+      <button id="copy-all-button">复制所有链接</button>
+    </div>
+
+    <a href="https://bulletin.moonchan.xyz/article/7379e0f05fe57054baafdae15a73c966acdfa473"
+      target="_blank" class="tips-link">如果你真没用过图床，点这</a>
+  </div>
+
+  <div id="items-container"></div>
+
+  <template id="item-template">
+    <div class="item">
+      <img src="" alt="预览">
+      <div class="info-wrapper">
+        <div class="info-group">
+          <label>文件链接 <span class="status-info"></span></label>
+          <input type="text" class="url-link status-text" value="准备中...">
+        </div>
+        <div class="info-group">
+          <label>删除链接</label>
+          <input type="text" class="del-link status-text" value="准备中...">
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script type="module">
+    const AVIF_ENCODE_OPTIONS = {
+      cqLevel: 30,
+      speed: 7,
+    };
+    const WEBP_ENCODE_OPTIONS = {
+      quality: 75,
+    };
+
+    const ENDPOINT = document.location.origin;
+    const isLocalDev = ['localhost', '127.0.0.1', '[::1]', '0.0.0.0'].includes(location.hostname);
+    const DEST = new URLSearchParams(location.search).get('dest') || (isLocalDev ? 'local' : '');
+    const UPLOAD_PATH = DEST ? `/api/upload/${DEST}` : '/api/upload';
+
+    let avifEncodeFn = null;
+    let webpEncodeFn = null;
+
+    const compressToAvif = async (imageData) => {
+      if (!avifEncodeFn) {
+        const mod = await import('https://esm.sh/@jsquash/avif');
+        avifEncodeFn = mod.encode;
+      }
+      return await avifEncodeFn(imageData, AVIF_ENCODE_OPTIONS);
+    };
+
+    const compressToWebp = async (imageData) => {
+      if (!webpEncodeFn) {
+        const mod = await import('https://esm.sh/@jsquash/webp');
+        webpEncodeFn = mod.encode;
+      }
+      return await webpEncodeFn(imageData, WEBP_ENCODE_OPTIONS);
+    };
+
+    const formatBytes = (bytes) => {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
+    // 统一从 DataTransfer (drag/drop 或 paste) 中提取 File 列表
+    const extractFiles = (dataTransfer) => {
+      if (!dataTransfer) return [];
+      if (dataTransfer.files && dataTransfer.files.length > 0) {
+        return Array.from(dataTransfer.files);
+      }
+      if (dataTransfer.items && dataTransfer.items.length > 0) {
+        const files = [];
+        for (const item of dataTransfer.items) {
+          if (item.kind === 'file') {
+            const f = item.getAsFile();
+            if (f) files.push(f);
+          }
+        }
+        return files;
+      }
+      return [];
+    };
+
+    const init = () => {
+      const body = document.body;
+      const fileInput = document.getElementById('file-input');
+      const itemsContainer = document.getElementById('items-container');
+      const itemTemplate = document.getElementById('item-template');
+      const copyAllButton = document.getElementById('copy-all-button');
+
+      const processFiles = (files) => {
+        if (!files || files.length === 0) return;
+        for (const file of files) {
+          uploadFile(file);
+        }
+        fileInput.value = '';
+      };
+
+      const uploadFile = async (originalFile) => {
+        const itemFragment = itemTemplate.content.cloneNode(true);
+        const itemElement = itemFragment.querySelector('.item');
+        const imgElement = itemElement.querySelector('img');
+        const urlLink = itemElement.querySelector('.url-link');
+        const delLink = itemElement.querySelector('.del-link');
+        const statusInfoSpan = itemElement.querySelector('.status-info');
+
+        let initialPreviewUrl = '';
+        if (originalFile.type && originalFile.type.startsWith('image/')) {
+          initialPreviewUrl = URL.createObjectURL(originalFile);
+          imgElement.src = initialPreviewUrl;
+        }
+        imgElement.alt = originalFile.name || 'file';
+        statusInfoSpan.textContent = `原文件: ${formatBytes(originalFile.size)}`;
+        itemsContainer.prepend(itemElement);
+
+        let fileToUpload = originalFile;
+        const selectedCompression = document.querySelector('input[name="compression-type"]:checked').value;
+        const shouldCompress = selectedCompression !== 'none' && originalFile.type && originalFile.type.startsWith('image/');
+
+        if (shouldCompress && originalFile.type === 'image/gif') {
+          statusInfoSpan.textContent = `跳过 GIF 图像（暂不支持压缩） (${formatBytes(originalFile.size)})`;
+        } else if (shouldCompress && (
+          (selectedCompression === 'avif' && originalFile.type === 'image/avif') ||
+          (selectedCompression === 'webp' && originalFile.type === 'image/webp')
+        )) {
+          statusInfoSpan.textContent = `无需处理 (${originalFile.type.split('/')[1].toUpperCase()}) (${formatBytes(originalFile.size)})`;
+        } else if (shouldCompress) {
+          try {
+            const formatName = selectedCompression.toUpperCase();
+            urlLink.value = `压缩中 (${formatName} WASM)...`;
+            delLink.value = '请稍候...';
+
+            const imageBitmap = await createImageBitmap(originalFile);
+            const canvas = document.createElement('canvas');
+            canvas.width = imageBitmap.width;
+            canvas.height = imageBitmap.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(imageBitmap, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            let compressedBuffer;
+            let compressedMimeType;
+            let newExtension;
+
+            if (selectedCompression === 'avif') {
+              compressedBuffer = await compressToAvif(imageData);
+              compressedMimeType = 'image/avif';
+              newExtension = '.avif';
+            } else {
+              compressedBuffer = await compressToWebp(imageData);
+              compressedMimeType = 'image/webp';
+              newExtension = '.webp';
             }
+
+            const baseName = (originalFile.name || 'image').replace(/\.[^/.]+$/, '');
+            const newName = `${baseName}${newExtension}`;
+            const compressedFile = new File([new Blob([compressedBuffer], { type: compressedMimeType })], newName, { type: compressedMimeType });
+
+            if (compressedFile.size < originalFile.size) {
+              fileToUpload = compressedFile;
+              if (initialPreviewUrl) URL.revokeObjectURL(initialPreviewUrl);
+              imgElement.src = URL.createObjectURL(fileToUpload);
+              const savedPercent = ((1 - fileToUpload.size / originalFile.size) * 100).toFixed(0);
+              statusInfoSpan.textContent = `${formatName} 压缩成功! 体积减小 ${savedPercent}% (${formatBytes(fileToUpload.size)})`;
+            } else {
+              statusInfoSpan.textContent = `原图更优，无需压缩 (${formatBytes(originalFile.size)})`;
+              statusInfoSpan.classList.add('warning');
+            }
+          } catch (error) {
+            console.error('压缩失败:', error);
+            statusInfoSpan.textContent = `压缩失败, 将上传原图`;
+            statusInfoSpan.classList.add('warning');
           }
+        } else if (selectedCompression !== 'none') {
+          statusInfoSpan.textContent = `跳过非图片文件 (${formatBytes(originalFile.size)})`;
         }
-    
-        const inputElement = document.getElementById("input");
-        inputElement.addEventListener("change", handleFiles, false);
-        function handleFiles() {
-          const files = this.files; /* now you can work with the file list */
-          for (let i=0; i<files.length; i++){
-            handleFile(files.item(i));
-          }
-        }
-        document.addEventListener('paste', (event) => {
-          console.log(event);
-          const files = event.clipboardData.files;
-          for (let i=0; i<files.length; i++){
-            handleFile(files.item(i));
+
+        // --- 统一使用 Raw Data 上传 (不再使用 FormData / multipart) ---
+        urlLink.value = '上传中...';
+        delLink.value = '上传中...';
+        urlLink.classList.remove('status-text');
+        delLink.classList.remove('status-text');
+
+        const fileName = fileToUpload.name || 'file';
+        const contentType = fileToUpload.type || 'application/octet-stream';
+        const uploadUrl = `${ENDPOINT}${UPLOAD_PATH}/${encodeURIComponent(fileName)}`;
+
+        fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': contentType,
+            'X-File-Name': encodeURIComponent(fileName),
+          },
+          body: fileToUpload,
+        })
+        .then(response => {
+          if (!response.ok) throw new Error(`服务器错误: ${response.status} ${response.statusText}`);
+          return response.json();
+        })
+        .then(data => {
+          urlLink.value = data.url;
+          delLink.value = data.delete_url;
+          urlLink.style.backgroundColor = '#e8f5e9';
+          urlLink.select();
+        })
+        .catch(error => {
+          console.error('上传失败:', error);
+          urlLink.value = `上传失败: ${error.message}`;
+          delLink.value = 'N/A';
+          itemElement.style.backgroundColor = '#ffebee';
+          urlLink.classList.add('status-text');
+        });
+      };
+
+      const handleCopyAll = () => {
+        const urlInputs = document.querySelectorAll('.item .url-link');
+        const urlsToCopy = [];
+
+        urlInputs.forEach(input => {
+          if (input.value && (input.value.startsWith('http://') || input.value.startsWith('https://'))) {
+            urlsToCopy.push(input.value);
           }
         });
-      </script>
-    </body>
+
+        if (urlsToCopy.length > 0) {
+          const textToCopy = urlsToCopy.join('\n');
+          navigator.clipboard.writeText(textToCopy)
+            .then(() => {
+              const originalText = copyAllButton.textContent;
+              copyAllButton.textContent = '已复制！';
+              setTimeout(() => {
+                copyAllButton.textContent = originalText;
+              }, 2000);
+            })
+            .catch(err => {
+              console.error('复制失败: ', err);
+              alert('复制失败！');
+            });
+        } else {
+          alert('没有可复制的链接。');
+        }
+      };
+
+      // --- 统一绑定 选择上传 / Ctrl+V / Drag & Drop ---
+      fileInput.addEventListener('change', (event) => processFiles(Array.from(event.target.files || [])), false);
+
+      window.addEventListener('paste', (event) => {
+        const files = extractFiles(event.clipboardData);
+        if (files.length > 0) {
+          event.preventDefault();
+          processFiles(files);
+        }
+      });
+
+      window.addEventListener('dragenter', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        body.classList.add('drag-over');
+      });
+
+      window.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+
+      window.addEventListener('dragleave', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.relatedTarget || event.relatedTarget.nodeName === 'HTML') {
+          body.classList.remove('drag-over');
+        }
+      });
+
+      window.addEventListener('drop', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        body.classList.remove('drag-over');
+        const files = extractFiles(event.dataTransfer);
+        processFiles(files);
+      });
+
+      itemsContainer.addEventListener('click', (event) => {
+        if (event.target.tagName === 'INPUT' && event.target.type === 'text') event.target.select();
+      });
+      itemsContainer.addEventListener('mouseover', (event) => {
+        if (event.target.tagName === 'INPUT' && event.target.type === 'text') event.target.select();
+      });
+      copyAllButton.addEventListener('click', handleCopyAll);
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  </script>
+
+</body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'static-cache-v1';
+const CACHE_NAME = 'static-cache-v2';
 const CACHEABLE_EXT = /\.(wasm|js)(\?|$)/;
 
 self.addEventListener('install', () => {
