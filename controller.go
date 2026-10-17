@@ -106,10 +106,8 @@ func uploadResp(c *gin.Context, path string, dest string, result *storage.PutRes
 
 	if dest == "p.sda1.dev" {
 		o.Set("path", "/p.sda1.dev/"+path)
-		// Upload URL: proxied through /api/p.sda1.dev (with error caching)
 		reqBase := publicBaseURL(c)
-		o.Set("url", reqBase+"/api/p.sda1.dev/"+path)
-		// Delete URL: direct to p.sda1.dev (NOT proxied)
+		o.Set("url", reqBase+"/p.sda1.dev/"+path)
 		o.Set("delete_url", "https://p.sda1.dev/"+path)
 		c.JSON(http.StatusOK, o)
 		return
