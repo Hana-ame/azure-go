@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	psda1 "github.com/Hana-ame/azure-go/storage/p_sda1_dev"
 	"github.com/gin-gonic/gin"
 )
 
@@ -54,7 +55,7 @@ func NewProxyHandler() *ProxyHandler {
 //  1. Extract path from the URL
 //  2. If path is in the error cache → return cached error immediately
 //  3. Proxy GET to https://p.sda1.dev/{path}
-//  4. If upstream returns 200 → stream content to the client
+//  4. If upstream returns 200 → strip any legacy multipart envelope, then stream to the client
 //  5. If upstream returns non-200 → cache error for 20 min, return it
 //  6. If upstream is unreachable → cache 502 Bad Gateway for 20 min
 func (h *ProxyHandler) Handle(c *gin.Context) {
@@ -108,9 +109,19 @@ func (h *ProxyHandler) Handle(c *gin.Context) {
 	}
 
 	// Step 4: 200 → return content
+	//
+	// Legacy-corpus compatibility: uploads made before Put stopped fabricating
+	// a multipart envelope were stored by p.sda1.dev *as the envelope* (the
+	// endpoint stores whatever it receives), so the header says image/png while
+	// the bytes are unreadable as an image. The endpoint has no delete API, so
+	// the only repair is to strip on the way out. Objects written by the fixed
+	// driver start with image magic bytes, so this is a no-op for them.
 	ct := resp.Header.Get("Content-Type")
 	if ct == "" {
 		ct = "application/octet-stream"
+	}
+	if clean, stripped := psda1.StripEnvelope(body); stripped {
+		body = clean
 	}
 	c.Data(http.StatusOK, ct, body)
 }
