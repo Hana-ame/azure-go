@@ -1,7 +1,8 @@
 package p_sda1_dev
 
 import (
-	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -43,22 +44,20 @@ func (d *Driver) Put(path, contentType string, body io.Reader) (*storage.PutResu
 		filename = "file"
 	}
 
-	// p.sda1.dev 的 upload_external_noform 端点接 raw body（端点名 noform = no
-	// multipart form），filename 走 query。旧实现把 body 包成 multipart 再发，导致
-	// p.sda1.dev 把整段 multipart 信封当对象存，回读即信封而非干净图片（浏览器
-	// <img> 渲染坏）。实测（2026-10-17）：PUT raw body 与 POST multipart 回读均为
-	// multipart 信封，boundary 为 Go 侧随机生成——证明信封由本 driver 产生，与前端
-	// 上传方式无关。故直接发 raw body，不再包 multipart。
-	data, err := io.ReadAll(body)
-	if err != nil {
-		return nil, fmt.Errorf("p.sda1.dev read body: %w", err)
-	}
+	// 照 azure/r2 driver（storage/azure/driver.go:31-35）：流式透传 body，不缓冲
+	// 整文件进内存。io.TeeReader 边传边算 md5；tee 作为 http.NewRequest 的 body
+	// 且不设 ContentLength → Go HTTP client 走 chunked transfer encoding（stream）。
+	// upload_external_noform 接 raw body（端点名 noform = no multipart form），
+	// filename 走 query；不包 multipart（旧实现包 multipart 致 p.sda1.dev 存信封、
+	// 回读渲染坏，2026-10-17 实测 PUT raw/POST multipart 回读均为 multipart 信封，
+	// boundary 为 Go 侧随机生成，证明信封由本 driver 产生）。
+	hash := md5.New()
+	tee := io.TeeReader(body, hash)
 
-	req, err := http.NewRequest("POST", d.apiURL+"?filename="+filename, bytes.NewReader(data))
+	req, err := http.NewRequest("POST", d.apiURL+"?filename="+filename, tee)
 	if err != nil {
 		return nil, fmt.Errorf("p.sda1.dev create req: %w", err)
 	}
-	req.ContentLength = int64(len(data))
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
@@ -85,7 +84,9 @@ func (d *Driver) Put(path, contentType string, body io.Reader) (*storage.PutResu
 	}
 
 	storagePath := strings.TrimPrefix(apiResp.Data.Path, "/")
-	return &storage.PutResult{ID: storagePath, Path: storagePath}, nil
+	md5hex := hex.EncodeToString(hash.Sum(nil))
+	etag := `"` + md5hex + `"`
+	return &storage.PutResult{ID: storagePath, Path: storagePath, ETag: etag}, nil
 }
 
 func (d *Driver) Get(path string) (io.ReadCloser, int64, string, error) {
