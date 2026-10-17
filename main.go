@@ -34,7 +34,7 @@ var r2PublicURL string
 var psda1ProxyDriver *psda1proxy.Driver
 var psda1ProxyHandler *psda1proxy.ProxyHandler
 
-const Version = "v26.10.16"
+const Version = "v26.10.17"
 
 func main_with_redirect() {
 
