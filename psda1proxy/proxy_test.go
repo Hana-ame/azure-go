@@ -1,7 +1,9 @@
 package psda1proxy
 
 import (
+	"bytes"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -361,6 +363,95 @@ func TestProxyHandler_ContentPreservation(t *testing.T) {
 
 	if w.Body.String() != expectedBody {
 		t.Errorf("body = %q, want %q", w.Body.String(), expectedBody)
+	}
+}
+
+// TestProxyHandler_StripsLegacyEnvelope verifies that objects stored before
+// the driver stopped fabricating a multipart envelope are served as clean
+// image bytes. p.sda1.dev stores whatever it receives, so those objects hold
+// the envelope instead of the image, and the endpoint has no delete API —
+// stripping on the read path is the only repair.
+func TestProxyHandler_StripsLegacyEnvelope(t *testing.T) {
+	// A real image wrapped the way the old driver sent it.
+	imageBytes := []byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 'a', 'b', 'c'}
+	var envelope bytes.Buffer
+	w := multipart.NewWriter(&envelope)
+	fw, err := w.CreateFormFile("image", "1792228850/photo.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fw.Write(imageBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		// Cloudflare assigns Content-Type by extension, so the header says
+		// image/png even though the body is an envelope — exactly the observed
+		// bug: a body that cannot be rendered as an image.
+		rw.Header().Set("Content-Type", "image/png")
+		rw.WriteHeader(http.StatusOK)
+		rw.Write(envelope.Bytes())
+	}))
+	defer upstream.Close()
+
+	handler := &ProxyHandler{
+		client:   NewClient(),
+		upstream: upstream.URL,
+		cache:    make(map[string]*cachedEntry),
+	}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/p.sda1.dev/1792228850/photo.png", nil)
+	c.Params = gin.Params{{Key: "path", Value: "/1792228850/photo.png"}}
+	handler.Handle(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("Content-Disposition")) {
+		t.Error("body still contains the multipart envelope headers")
+	}
+	if got := rec.Body.Bytes(); !bytes.Equal(got, imageBytes) {
+		t.Errorf("body = %d bytes starting %q, want the clean image bytes",
+			len(got), got[:min(len(got), 16)])
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "image/png") {
+		t.Errorf("content type = %q, want image/png prefix", ct)
+	}
+}
+
+// TestProxyHandler_DoesNotStripCleanBody verifies stripping is a no-op for
+// objects written by the fixed driver.
+func TestProxyHandler_DoesNotStripCleanBody(t *testing.T) {
+	// The body contains "\r\n--" inside real data: it must never be mis-sliced.
+	// An envelope is only recognised by its *first* line.
+	body := []byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, '-', '-', 'x', 'y'}
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "image/png")
+		rw.WriteHeader(http.StatusOK)
+		rw.Write(body)
+	}))
+	defer upstream.Close()
+
+	handler := &ProxyHandler{
+		client:   NewClient(),
+		upstream: upstream.URL,
+		cache:    make(map[string]*cachedEntry),
+	}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/p.sda1.dev/1792228850/photo.png", nil)
+	c.Params = gin.Params{{Key: "path", Value: "/1792228850/photo.png"}}
+	handler.Handle(c)
+
+	if got := rec.Body.Bytes(); !bytes.Equal(got, body) {
+		t.Errorf("body = %q, want untouched %q", got, body)
 	}
 }
 
