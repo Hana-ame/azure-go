@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -44,22 +43,27 @@ func (d *Driver) Put(path, contentType string, body io.Reader) (*storage.PutResu
 		filename = "file"
 	}
 
-	var buf bytes.Buffer
-	w := multipart.NewWriter(&buf)
-	fw, err := w.CreateFormFile("image", filename)
+	// p.sda1.dev 的 upload_external_noform 端点接 raw body（端点名 noform = no
+	// multipart form），filename 走 query。旧实现把 body 包成 multipart 再发，导致
+	// p.sda1.dev 把整段 multipart 信封当对象存，回读即信封而非干净图片（浏览器
+	// <img> 渲染坏）。实测（2026-10-17）：PUT raw body 与 POST multipart 回读均为
+	// multipart 信封，boundary 为 Go 侧随机生成——证明信封由本 driver 产生，与前端
+	// 上传方式无关。故直接发 raw body，不再包 multipart。
+	data, err := io.ReadAll(body)
 	if err != nil {
-		return nil, fmt.Errorf("p.sda1.dev create form file: %w", err)
+		return nil, fmt.Errorf("p.sda1.dev read body: %w", err)
 	}
-	if _, err := io.Copy(fw, body); err != nil {
-		return nil, fmt.Errorf("p.sda1.dev copy body: %w", err)
-	}
-	w.Close()
 
-	req, err := http.NewRequest("POST", d.apiURL+"?filename="+filename, &buf)
+	req, err := http.NewRequest("POST", d.apiURL+"?filename="+filename, bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("p.sda1.dev create req: %w", err)
 	}
-	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.ContentLength = int64(len(data))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
 
 	resp, err := d.client.Do(req)
 	if err != nil {
