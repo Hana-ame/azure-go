@@ -60,6 +60,41 @@
         cursor: pointer;
     }
 
+    .dest-group {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .dest-option {
+        font-size: 13px;
+        color: #333;
+        cursor: pointer;
+        background: #eef2f5;
+        padding: 6px 12px;
+        border-radius: 4px;
+        border: 1px solid transparent;
+        user-select: none;
+        transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .dest-option:hover {
+        background: #e2e8ee;
+    }
+    .dest-option.selected {
+        background: #007bff;
+        color: #fff;
+        border-color: #0056b3;
+    }
+    .dest-option input {
+        display: none;
+    }
+    .dest-label {
+        font-weight: bold;
+        font-size: 14px;
+        color: #333;
+        margin-right: 2px;
+    }
+
     #copy-all-button {
         padding: 8px 16px;
         font-size: 14px;
@@ -191,6 +226,34 @@
         <input placeholder="召唤键盘" />
       </div>
 
+      <div class="dest-group" title="选择上传目标后端。自动 = 按文件类型选择 (图片→p.sda1.dev，其他→r2)。">
+        <span class="dest-label">目标:</span>
+        <label class="dest-option selected" data-dest="">
+          <input type="radio" name="dest" value="" checked>
+          <span>自动</span>
+        </label>
+        <label class="dest-option" data-dest="p.sda1.dev">
+          <input type="radio" name="dest" value="p.sda1.dev">
+          <span>p.sda1.dev</span>
+        </label>
+        <label class="dest-option" data-dest="p.inari.site">
+          <input type="radio" name="dest" value="p.inari.site">
+          <span>p.inari.site</span>
+        </label>
+        <label class="dest-option" data-dest="i.imgur.com">
+          <input type="radio" name="dest" value="i.imgur.com">
+          <span>i.imgur.com</span>
+        </label>
+        <label class="dest-option" data-dest="r2">
+          <input type="radio" name="dest" value="r2">
+          <span>r2</span>
+        </label>
+        <label class="dest-option" data-dest="local">
+          <input type="radio" name="dest" value="local">
+          <span>local</span>
+        </label>
+      </div>
+
       <button id="copy-all-button">复制所有链接</button>
     </div>
 
@@ -227,8 +290,29 @@
 
     const ENDPOINT = document.location.origin;
     const isLocalDev = ['localhost', '127.0.0.1', '[::1]', '0.0.0.0'].includes(location.hostname);
-    const DEST = new URLSearchParams(location.search).get('dest') || (isLocalDev ? 'local' : '');
-    const UPLOAD_PATH = DEST ? `/api/upload/${DEST}` : '/api/upload';
+    // Default dest from the URL (?dest=) when present; otherwise "" (auto).
+    const URL_DEST = new URLSearchParams(location.search).get('dest') || (isLocalDev ? 'local' : '');
+
+    // uploadPath returns the path for the currently selected dest button group.
+    const selectedDest = () => {
+      const el = document.querySelector('input[name="dest"]:checked');
+      return el ? el.value : '';
+    };
+    const uploadPath = () => {
+      const dest = selectedDest() || URL_DEST;
+      return dest ? `/api/upload/${dest}` : '/api/upload';
+    };
+    // If the URL carries ?dest=, preselect the matching button (if present);
+    // otherwise the "自动" (auto) option stays checked by default.
+    const syncDestButtons = () => {
+      if (!URL_DEST) return;
+      const target = document.querySelector(`.dest-option[data-dest="${URL_DEST}"]`);
+      if (!target) return;
+      const radio = target.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+      document.querySelectorAll('.dest-option').forEach(o => o.classList.remove('selected'));
+      target.classList.add('selected');
+    };
 
     let avifEncodeFn = null;
     let webpEncodeFn = null;
@@ -282,6 +366,9 @@
       const itemsContainer = document.getElementById('items-container');
       const itemTemplate = document.getElementById('item-template');
       const copyAllButton = document.getElementById('copy-all-button');
+
+      // Preselect the dest button from ?dest= (if any).
+      syncDestButtons();
 
       const processFiles = (files) => {
         if (!files || files.length === 0) return;
@@ -378,7 +465,7 @@
 
         const fileName = fileToUpload.name || 'file';
         const contentType = fileToUpload.type || 'application/octet-stream';
-        const uploadUrl = `${ENDPOINT}${UPLOAD_PATH}/${encodeURIComponent(fileName)}`;
+        const uploadUrl = `${ENDPOINT}${uploadPath()}/${encodeURIComponent(fileName)}`;
 
         fetch(uploadUrl, {
           method: 'PUT',
@@ -481,6 +568,19 @@
         if (event.target.tagName === 'INPUT' && event.target.type === 'text') event.target.select();
       });
       copyAllButton.addEventListener('click', handleCopyAll);
+
+      // --- 目标后端按钮组：点击切换选中态并同步隐藏 radio ---
+      const destGroup = document.querySelector('.dest-group');
+      if (destGroup) {
+        destGroup.addEventListener('click', (event) => {
+          const option = event.target.closest('.dest-option');
+          if (!option) return;
+          const radio = option.querySelector('input[type="radio"]');
+          if (radio) radio.checked = true;
+          destGroup.querySelectorAll('.dest-option').forEach(o => o.classList.remove('selected'));
+          option.classList.add('selected');
+        });
+      }
     };
 
     if (document.readyState === 'loading') {
