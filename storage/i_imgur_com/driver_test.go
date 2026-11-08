@@ -222,6 +222,12 @@ func TestGet_StreamsImage(t *testing.T) {
 		if r.URL.Path != "/AbCdEf.png" {
 			t.Errorf("path = %q, want /AbCdEf.png", r.URL.Path)
 		}
+		if got := r.Header.Get("User-Agent"); got != browserUA {
+			t.Errorf("User-Agent = %q, want browser UA", got)
+		}
+		if got := r.Header.Get("Accept"); got == "" {
+			t.Error("Accept header should be set (imgur 429s bare requests)")
+		}
 		w.Header().Set("Content-Type", "image/png")
 		w.Write(testPNG)
 	}))

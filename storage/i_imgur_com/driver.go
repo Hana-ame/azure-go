@@ -261,7 +261,15 @@ func (d *Driver) Get(path string) (io.ReadCloser, int64, string, error) {
 	// Rebuild the direct URL. The public host is https://i.imgur.com, and the
 	// path is either "SmWnjfK.png" or "SmWnjfK" — both work on i.imgur.com.
 	u := d.publicBase + "/" + strings.TrimLeft(path, "/")
-	resp, err := d.client.Get(u)
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, 0, "", fmt.Errorf("imgur: get: %w", err)
+	}
+	// imgur's edge 429s bare requests (no User-Agent). Set a browser UA and
+	// standard image Accept header so the proxied read is served.
+	req.Header.Set("User-Agent", browserUA)
+	req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+	resp, err := d.client.Do(req)
 	if err != nil {
 		return nil, 0, "", fmt.Errorf("imgur: get: %w", err)
 	}
@@ -281,7 +289,13 @@ func (d *Driver) Delete(path string) error {
 // Head returns metadata for an image on the i.imgur.com public host.
 func (d *Driver) Head(path string) (int64, string, error) {
 	u := d.publicBase + "/" + strings.TrimLeft(path, "/")
-	resp, err := d.client.Head(u)
+	req, err := http.NewRequest("HEAD", u, nil)
+	if err != nil {
+		return 0, "", fmt.Errorf("imgur: head: %w", err)
+	}
+	req.Header.Set("User-Agent", browserUA)
+	req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+	resp, err := d.client.Do(req)
 	if err != nil {
 		return 0, "", fmt.Errorf("imgur: head: %w", err)
 	}
