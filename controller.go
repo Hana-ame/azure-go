@@ -117,16 +117,25 @@ func uploadResp(c *gin.Context, path string, dest string, result *storage.PutRes
 	}
 
 	if dest == "i.imgur.com" {
-		// Imgur returns its own direct link; no local proxy route exists.
-		if result != nil && result.URL != "" {
-			o.Set("url", result.URL)
+		// Serve through the proxy route (/i.imgur.com/*path) rather than the
+		// direct i.imgur.com host, so read behaviour matches the other
+		// backends and the returned URL is on our own domain.
+		imgurPath := ""
+		if result != nil {
+			imgurPath = result.Path
+			if imgurPath == "" {
+				imgurPath = result.ID
+			}
+		}
+		if imgurPath != "" {
+			o.Set("path", "/i.imgur.com/"+imgurPath)
+			reqBase := publicBaseURL(c)
+			o.Set("url", reqBase+"/i.imgur.com/"+imgurPath)
 		} else {
+			o.Set("path", "")
 			o.Set("url", "")
 		}
 		o.Set("delete_url", "")
-		if result != nil && result.ID != "" {
-			o.Set("path", "/i.imgur.com/"+result.ID)
-		}
 		c.JSON(http.StatusOK, o)
 		return
 	}
@@ -612,6 +621,30 @@ func P_inari_siteFile(c *gin.Context) {
 	}
 
 	file, size, contentType, err := pInariSiteDriver.Get(raw)
+	if err != nil {
+		c.String(http.StatusNotFound, err.Error())
+		return
+	}
+	defer file.Close()
+
+	c.DataFromReader(http.StatusOK, size, contentType, file, map[string]string{
+		"Content-Disposition": "inline",
+	})
+}
+
+func I_imgur_comFile(c *gin.Context) {
+	if imgurDriver == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	raw := strings.TrimPrefix(c.Param("path"), "/")
+	if raw == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	file, size, contentType, err := imgurDriver.Get(raw)
 	if err != nil {
 		c.String(http.StatusNotFound, err.Error())
 		return

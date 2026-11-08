@@ -141,13 +141,16 @@ func (d *Driver) Put(path, contentType string, body io.Reader) (*storage.PutResu
 
 	link := apiResp.Data.Link
 	id := imgurIDFromLink(link)
+	// Path keeps the extension (e.g. "SmWnjfK.png") so the controller can
+	// emit /i.imgur.com/<path> and the proxy Get can fetch the exact file.
+	imgurPath := imgurPathFromLink(link)
 	deleteURL := ""
 	if apiResp.Data.Deletehash != "" {
 		deleteURL = "https://api.imgur.com/3/image/" + apiResp.Data.Deletehash + "?client_id=" + ImgurWebClientID
 	}
 	return &storage.PutResult{
 		ID:        id,
-		Path:      id,
+		Path:      imgurPath,
 		URL:       link,
 		DeleteURL: deleteURL,
 	}, nil
@@ -234,10 +237,39 @@ func imgurIDFromLink(link string) string {
 	return seg
 }
 
-// Get is not implemented: imgur serves the image directly at the returned
-// URL. The controller uses URL directly and never routes GETs through here.
+// imgurPathFromLink returns the full last path segment of an i.imgur.com link,
+// including any extension (e.g. "SmWnjfK.png"). When the link has no
+// extension, the id alone is returned. This is the value the controller uses
+// for /i.imgur.com/<path> so the proxy Get fetches the exact file.
+func imgurPathFromLink(link string) string {
+	u, err := url.Parse(link)
+	if err != nil {
+		return link
+	}
+	trimmed := strings.TrimRight(u.Path, "/")
+	seg := path.Base(trimmed)
+	if seg == "" || seg == "." || seg == "/" {
+		return ""
+	}
+	return seg
+}
+
+// Get streams the image bytes from the i.imgur.com public host so the
+// controller can serve it through its own proxy route (/i.imgur.com/*path).
+// path is the full filename (e.g. "SmWnjfK.png") or the bare id.
 func (d *Driver) Get(path string) (io.ReadCloser, int64, string, error) {
-	return nil, 0, "", fmt.Errorf("imgur: get not supported (serve the returned URL directly)")
+	// Rebuild the direct URL. The public host is https://i.imgur.com, and the
+	// path is either "SmWnjfK.png" or "SmWnjfK" — both work on i.imgur.com.
+	u := d.publicBase + "/" + strings.TrimLeft(path, "/")
+	resp, err := d.client.Get(u)
+	if err != nil {
+		return nil, 0, "", fmt.Errorf("imgur: get: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, 0, "", fmt.Errorf("imgur: get: %s", resp.Status)
+	}
+	return resp.Body, resp.ContentLength, resp.Header.Get("Content-Type"), nil
 }
 
 // Delete is not supported through this driver: the upload response carries a
@@ -246,7 +278,16 @@ func (d *Driver) Delete(path string) error {
 	return fmt.Errorf("imgur: delete not supported")
 }
 
-// Head is not supported.
+// Head returns metadata for an image on the i.imgur.com public host.
 func (d *Driver) Head(path string) (int64, string, error) {
-	return 0, "", fmt.Errorf("imgur: head not supported")
+	u := d.publicBase + "/" + strings.TrimLeft(path, "/")
+	resp, err := d.client.Head(u)
+	if err != nil {
+		return 0, "", fmt.Errorf("imgur: head: %w", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, "", fmt.Errorf("imgur: head: %s", resp.Status)
+	}
+	return resp.ContentLength, resp.Header.Get("Content-Type"), nil
 }

@@ -108,8 +108,11 @@ func TestPut_RawBodyUploadsAndReturnsLink(t *testing.T) {
 	if res == nil || res.URL != "https://i.imgur.com/AbCdEf.png" {
 		t.Errorf("URL = %v", res)
 	}
-	if res.Path != "AbCdEf" {
-		t.Errorf("Path = %q, want AbCdEf", res.Path)
+	if res.Path != "AbCdEf.png" {
+		t.Errorf("Path = %q, want AbCdEf.png (extension kept)", res.Path)
+	}
+	if res.ID != "AbCdEf" {
+		t.Errorf("ID = %q, want AbCdEf", res.ID)
 	}
 	if res.DeleteURL == "" {
 		t.Error("DeleteURL should be non-empty (deletehash present)")
@@ -157,6 +160,9 @@ func TestPut_MultipartBody(t *testing.T) {
 	if res == nil || res.URL != "https://i.imgur.com/MmNnOo.png" {
 		t.Errorf("URL = %v", res)
 	}
+	if res.Path != "MmNnOo.png" {
+		t.Errorf("Path = %q, want MmNnOo.png (extension kept)", res.Path)
+	}
 }
 
 func TestPut_UpstreamError(t *testing.T) {
@@ -194,9 +200,79 @@ func TestImgurIDFromLink(t *testing.T) {
 	}
 }
 
-func TestGet_NotSupported(t *testing.T) {
+func TestImgurPathFromLink(t *testing.T) {
+	cases := map[string]string{
+		"https://i.imgur.com/AbCdEf.png":  "AbCdEf.png",
+		"https://i.imgur.com/AbCdEf.jpg":  "AbCdEf.jpg",
+		"https://i.imgur.com/AbCdEf":      "AbCdEf",
+		"https://i.imgur.com/AbCdEf.jpeg": "AbCdEf.jpeg",
+		"https://i.imgur.com/":            "",
+	}
+	for in, want := range cases {
+		if got := imgurPathFromLink(in); got != want {
+			t.Errorf("imgurPathFromLink(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestGet_StreamsImage verifies the proxy Get fetches the exact file from the
+// public host and returns its bytes, size and content type.
+func TestGet_StreamsImage(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/AbCdEf.png" {
+			t.Errorf("path = %q, want /AbCdEf.png", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(testPNG)
+	}))
+	defer ts.Close()
+
 	d := New()
-	if _, _, _, err := d.Get("x.png"); err == nil {
-		t.Fatal("expected Get to be unsupported")
+	d.publicBase = ts.URL
+	rc, size, ct, err := d.Get("AbCdEf.png")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	defer rc.Close()
+	if got := mustRead(rc); !bytes.Equal(got, testPNG) {
+		t.Errorf("body = %q, want image bytes", got)
+	}
+	if size != int64(len(testPNG)) {
+		t.Errorf("size = %d, want %d", size, len(testPNG))
+	}
+	if ct != "image/png" {
+		t.Errorf("content-type = %q", ct)
+	}
+}
+
+// TestGet_BareID verifies Get also works with a bare id (no extension).
+func TestGet_BareID(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/AbCdEf" {
+			t.Errorf("path = %q, want /AbCdEf", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(testPNG)
+	}))
+	defer ts.Close()
+
+	d := New()
+	d.publicBase = ts.URL
+	if _, _, _, err := d.Get("AbCdEf"); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+}
+
+// TestGet_UpstreamError verifies a non-200 upstream surfaces as an error.
+func TestGet_UpstreamError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer ts.Close()
+
+	d := New()
+	d.publicBase = ts.URL
+	if _, _, _, err := d.Get("missing.png"); err == nil {
+		t.Fatal("expected error for a 404 upstream")
 	}
 }

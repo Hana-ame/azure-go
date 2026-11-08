@@ -36,7 +36,7 @@ var r2PublicURL string
 var psda1ProxyDriver *psda1proxy.Driver
 var psda1ProxyHandler *psda1proxy.ProxyHandler
 
-const Version = "v26.11.08"
+const Version = "v26.11.09"
 
 func main_with_redirect() {
 
@@ -205,6 +205,9 @@ func main() {
 
 	// p.inari.site proxy: GET /p.inari.site/path (serve through Driver.Get)
 	r.GET("/p.inari.site/*path", P_inari_siteFile)
+
+	// i.imgur.com proxy: GET /i.imgur.com/path (serve through Driver.Get)
+	r.GET("/i.imgur.com/*path", I_imgur_comFile)
 
 	// p.sda1.dev proxy: GET /api/p.sda1.dev/path (new, with error caching)
 	r.GET("/api/p.sda1.dev/*path", psda1ProxyHandler.Handle)
