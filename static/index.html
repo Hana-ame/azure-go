@@ -242,6 +242,10 @@
           <span> WEBP</span>
         </label>
         <label class="compress-option">
+          <input type="radio" name="compression-type" value="jpg">
+          <span> JPG</span>
+        </label>
+        <label class="compress-option">
           <input type="radio" name="compression-type" value="none">
           <span>不压缩</span>
         </label>
@@ -302,6 +306,9 @@
     const WEBP_ENCODE_OPTIONS = {
       quality: 75,
     };
+    const JPEG_ENCODE_OPTIONS = {
+      quality: 75,
+    };
 
     const ENDPOINT = document.location.origin;
     const isLocalDev = ['localhost', '127.0.0.1', '[::1]', '0.0.0.0'].includes(location.hostname);
@@ -335,6 +342,7 @@
 
     let avifEncodeFn = null;
     let webpEncodeFn = null;
+    let jpegEncodeFn = null;
 
     const compressToAvif = async (imageData) => {
       if (!avifEncodeFn) {
@@ -350,6 +358,14 @@
         webpEncodeFn = mod.encode;
       }
       return await webpEncodeFn(imageData, WEBP_ENCODE_OPTIONS);
+    };
+
+    const compressToJpeg = async (imageData) => {
+      if (!jpegEncodeFn) {
+        const mod = await import('https://esm.sh/@jsquash/jpeg');
+        jpegEncodeFn = mod.encode;
+      }
+      return await jpegEncodeFn(imageData, JPEG_ENCODE_OPTIONS);
     };
 
     const formatBytes = (bytes) => {
@@ -422,12 +438,13 @@
           statusInfoSpan.textContent = `跳过 GIF 图像（暂不支持压缩） (${formatBytes(originalFile.size)})`;
         } else if (shouldCompress && (
           (selectedCompression === 'avif' && originalFile.type === 'image/avif') ||
-          (selectedCompression === 'webp' && originalFile.type === 'image/webp')
+          (selectedCompression === 'webp' && originalFile.type === 'image/webp') ||
+          (selectedCompression === 'jpg' && originalFile.type === 'image/jpeg')
         )) {
           statusInfoSpan.textContent = `无需处理 (${originalFile.type.split('/')[1].toUpperCase()}) (${formatBytes(originalFile.size)})`;
         } else if (shouldCompress) {
           try {
-            const formatName = selectedCompression.toUpperCase();
+            const formatName = selectedCompression === 'jpg' ? 'JPG' : selectedCompression.toUpperCase();
             urlLink.value = `压缩中 (${formatName} WASM)...`;
             delLink.value = '请稍候...';
 
@@ -447,6 +464,10 @@
               compressedBuffer = await compressToAvif(imageData);
               compressedMimeType = 'image/avif';
               newExtension = '.avif';
+            } else if (selectedCompression === 'jpg') {
+              compressedBuffer = await compressToJpeg(imageData);
+              compressedMimeType = 'image/jpeg';
+              newExtension = '.jpg';
             } else {
               compressedBuffer = await compressToWebp(imageData);
               compressedMimeType = 'image/webp';
