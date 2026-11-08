@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>图片/文件上传 (w/ AVIF/WEBP)</title>
   <link rel="manifest" href="/manifest.json">
   <style type="text/css">
@@ -33,12 +34,33 @@
         gap: 16px;
         align-items: center;
         margin-bottom: 12px;
+        min-width: 0;
+    }
+    .upload-controls > * {
+        min-width: 0;
+    }
+    .upload-controls .compression-group,
+    .upload-controls .dest-group {
+        flex: 1 1 220px;
+    }
+    #copy-all-button {
+        flex: 0 0 auto;
     }
 
     .compression-group {
         display: flex;
         gap: 12px;
         align-items: center;
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+    .compression-group input[placeholder] {
+        flex: 1 1 120px;
+        min-width: 0;
+        max-width: 200px;
+        padding: 6px 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
     }
 
     .file-label {
