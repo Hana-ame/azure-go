@@ -18,7 +18,9 @@ import (
 	tools "github.com/Hana-ame/azure-go/Tools"
 	"github.com/Hana-ame/azure-go/Tools/orderedmap"
 	"github.com/Hana-ame/azure-go/storage"
+	i_imgur_com "github.com/Hana-ame/azure-go/storage/i_imgur_com"
 	localfs "github.com/Hana-ame/azure-go/storage/local"
+	p_inari_site "github.com/Hana-ame/azure-go/storage/p_inari_site"
 	p_sda1_dev "github.com/Hana-ame/azure-go/storage/p_sda1_dev"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -26,6 +28,8 @@ import (
 
 var localDriver *localfs.Driver
 var pSda1DevDriver *p_sda1_dev.Driver
+var pInariSiteDriver *p_inari_site.Driver
+var imgurDriver *i_imgur_com.Driver
 var azureDriver *AzureDriver
 var azureDisabled bool
 
@@ -101,6 +105,32 @@ func uploadResp(c *gin.Context, path string, dest string, result *storage.PutRes
 		return
 	}
 
+	if dest == "p.inari.site" {
+		o.Set("path", "/p.inari.site/"+path)
+		reqBase := publicBaseURL(c)
+		// Serve through the proxy (Driver.Get) rather than the upstream
+		// public host, so read behaviour matches the other backends.
+		o.Set("url", reqBase+"/p.inari.site/"+path)
+		o.Set("delete_url", "")
+		c.JSON(http.StatusOK, o)
+		return
+	}
+
+	if dest == "i.imgur.com" {
+		// Imgur returns its own direct link; no local proxy route exists.
+		if result != nil && result.URL != "" {
+			o.Set("url", result.URL)
+		} else {
+			o.Set("url", "")
+		}
+		o.Set("delete_url", "")
+		if result != nil && result.ID != "" {
+			o.Set("path", "/i.imgur.com/"+result.ID)
+		}
+		c.JSON(http.StatusOK, o)
+		return
+	}
+
 	reqBase := publicBaseURL(c)
 
 	if dest == "local" {
@@ -171,9 +201,11 @@ func effectiveDest(dest, filename, contentType string) string {
 }
 
 var validUploadDests = map[string]bool{
-	"p.sda1.dev": true,
-	"r2":         true,
-	"local":      true,
+	"p.sda1.dev":   true,
+	"p.inari.site": true,
+	"i.imgur.com":  true,
+	"r2":           true,
+	"local":        true,
 }
 
 // parseUploadPath splits Param("fn") into an optional explicit destination
@@ -246,6 +278,20 @@ func ensureDriver(c *gin.Context, dest string) bool {
 		}
 		return true
 	}
+	if dest == "p.inari.site" {
+		if pInariSiteDriver == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "p.inari.site storage not configured"})
+			return false
+		}
+		return true
+	}
+	if dest == "i.imgur.com" {
+		if imgurDriver == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "i.imgur.com storage not configured"})
+			return false
+		}
+		return true
+	}
 	if r2Driver == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "no storage backend available"})
 		return false
@@ -262,6 +308,12 @@ func uploadDriver(dest string) storage.StorageDriver {
 			return pSda1DevDriver
 		}
 		return psda1ProxyDriver
+	}
+	if dest == "p.inari.site" {
+		return pInariSiteDriver
+	}
+	if dest == "i.imgur.com" {
+		return imgurDriver
 	}
 	return r2Driver
 }
@@ -536,6 +588,30 @@ func P_sda1_devFile(c *gin.Context) {
 	}
 
 	file, size, contentType, err := pSda1DevDriver.Get(raw)
+	if err != nil {
+		c.String(http.StatusNotFound, err.Error())
+		return
+	}
+	defer file.Close()
+
+	c.DataFromReader(http.StatusOK, size, contentType, file, map[string]string{
+		"Content-Disposition": "inline",
+	})
+}
+
+func P_inari_siteFile(c *gin.Context) {
+	if pInariSiteDriver == nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	raw := strings.TrimPrefix(c.Param("path"), "/")
+	if raw == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	file, size, contentType, err := pInariSiteDriver.Get(raw)
 	if err != nil {
 		c.String(http.StatusNotFound, err.Error())
 		return

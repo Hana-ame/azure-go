@@ -18,6 +18,8 @@ import (
 	"github.com/Hana-ame/azure-go/myfetch"
 	"github.com/Hana-ame/azure-go/psda1proxy"
 	localfs "github.com/Hana-ame/azure-go/storage/local"
+	p_inari_site "github.com/Hana-ame/azure-go/storage/p_inari_site"
+	i_imgur_com "github.com/Hana-ame/azure-go/storage/i_imgur_com"
 	p_sda1_dev "github.com/Hana-ame/azure-go/storage/p_sda1_dev"
 	"github.com/Hana-ame/azure-go/storage/r2"
 	"github.com/gin-gonic/gin"
@@ -34,7 +36,7 @@ var r2PublicURL string
 var psda1ProxyDriver *psda1proxy.Driver
 var psda1ProxyHandler *psda1proxy.ProxyHandler
 
-const Version = "v26.10.20"
+const Version = "v26.11.08"
 
 func main_with_redirect() {
 
@@ -152,6 +154,12 @@ func main() {
 	pSda1DevDriver = p_sda1_dev.New()
 	log.Printf("[Init] p.sda1.dev driver initialized")
 
+	pInariSiteDriver = p_inari_site.New()
+	log.Printf("[Init] p.inari.site driver initialized")
+
+	imgurDriver = i_imgur_com.New()
+	log.Printf("[Init] imgur driver initialized")
+
 	// p.sda1.dev proxy module: format validation + error caching
 	psda1ProxyDriver = psda1proxy.New()
 	psda1ProxyHandler = psda1proxy.NewProxyHandler()
@@ -194,6 +202,9 @@ func main() {
 
 	// p.sda1.dev proxy: GET /p.sda1.dev/path (legacy, direct)
 	r.GET("/p.sda1.dev/*path", P_sda1_devFile)
+
+	// p.inari.site proxy: GET /p.inari.site/path (serve through Driver.Get)
+	r.GET("/p.inari.site/*path", P_inari_siteFile)
 
 	// p.sda1.dev proxy: GET /api/p.sda1.dev/path (new, with error caching)
 	r.GET("/api/p.sda1.dev/*path", psda1ProxyHandler.Handle)

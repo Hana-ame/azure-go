@@ -10,6 +10,14 @@ type PutResult struct {
 	ETag    string
 	Path    string // actual storage path (may differ from input path, e.g. external services)
 	DupPath string // non-empty if content was already stored at this path (dedup)
+
+	// URL and DeleteURL are optional external links set by backends whose
+	// object lives on a third-party host with its own public URL (e.g. imgur).
+	// They are empty for the azure/r2/local/p.sda1.dev/p.inari.site drivers,
+	// which build their links from publicBaseURL. When URL is non-empty the
+	// controller uses it directly instead of deriving a /<backend>/<path> link.
+	URL       string
+	DeleteURL string
 }
 
 // StorageDriver abstracts file storage operations.
