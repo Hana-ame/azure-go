@@ -106,6 +106,48 @@
         background: rgba(255, 255, 255, 0.25);
     }
 
+    /* 小型「不压缩」开关：样式参考 dsh 插件里的 model 选择器（小号、细字、浅灰、无边框胶囊） */
+    .no-compress-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        color: #61666b;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 8px;
+        user-select: none;
+        transition: background-color 0.15s, color 0.15s;
+    }
+    .no-compress-toggle:hover {
+        background: #e2e8ee;
+    }
+    .no-compress-toggle input {
+        display: none;
+    }
+    .no-compress-toggle .nc-dot {
+        width: 12px;
+        height: 12px;
+        flex: 0 0 12px;
+        border-radius: 50%;
+        border: 1.5px solid #9aa0a6;
+        box-sizing: border-box;
+        transition: background-color 0.15s, border-color 0.15s;
+    }
+    .no-compress-toggle.checked .nc-dot {
+        background: #007bff;
+        border-color: #0056b3;
+    }
+    .no-compress-toggle.checked {
+        color: #007bff;
+    }
+    .preset-sep {
+        width: 1px;
+        height: 20px;
+        background: #d8dde2;
+        margin: 0 2px;
+    }
+
     #copy-all-button {
         padding: 8px 16px;
         font-size: 14px;
@@ -236,6 +278,14 @@
           <input type="radio" name="preset" value="sda1-webp">
           <span class="preset-dest">sda1</span>
           <span class="preset-fmt">WEBP</span>
+        </label>
+
+        <span class="preset-sep"></span>
+
+        <label class="no-compress-toggle" title="不压缩：保留所选目标后端，原图直接上传，不做 WASM 转换。">
+          <input type="checkbox" id="no-compress">
+          <span class="nc-dot"></span>
+          <span>不压缩</span>
         </label>
       </div>
 
@@ -394,7 +444,8 @@
 
         let fileToUpload = originalFile;
         const fmt = selectedFmt();  // 'jpg' | 'webp'
-        const shouldCompress = originalFile.type && originalFile.type.startsWith('image/');
+        const noCompress = document.getElementById('no-compress').checked;
+        const shouldCompress = !noCompress && originalFile.type && originalFile.type.startsWith('image/');
 
         if (shouldCompress && originalFile.type === 'image/gif') {
           statusInfoSpan.textContent = `跳过 GIF 图像（暂不支持压缩） (${formatBytes(originalFile.size)})`;
@@ -574,6 +625,15 @@
           if (radio) radio.checked = true;
           presetGroup.querySelectorAll('.preset-option').forEach(o => o.classList.remove('selected'));
           option.classList.add('selected');
+        });
+      }
+
+      // --- 小「不压缩」开关：同步 checkbox 与视觉态 ---
+      const noCompressToggle = document.querySelector('.no-compress-toggle');
+      const noCompressCheckbox = document.getElementById('no-compress');
+      if (noCompressToggle && noCompressCheckbox) {
+        noCompressToggle.addEventListener('click', () => {
+          noCompressToggle.classList.toggle('checked', noCompressCheckbox.checked);
         });
       }
     };
