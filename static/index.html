@@ -39,15 +39,14 @@
     .upload-controls > * {
         min-width: 0;
     }
-    .upload-controls .compression-group,
-    .upload-controls .dest-group {
+    .upload-controls .preset-group {
         flex: 1 1 220px;
     }
     #copy-all-button {
         flex: 0 0 auto;
     }
 
-    .compression-group {
+    .preset-group {
         display: flex;
         gap: 12px;
         align-items: center;
@@ -67,28 +66,10 @@
       font-weight: bold;
     }
 
-    .compress-option {
-        display: flex;
+    .preset-option {
+        display: inline-flex;
         align-items: center;
-        font-size: 14px;
-        color: #333;
-        cursor: pointer;
-        background: #eef2f5;
-        padding: 6px 12px;
-        border-radius: 4px;
-    }
-    .compress-option input {
-        margin-right: 8px;
-        cursor: pointer;
-    }
-
-    .dest-group {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-    .dest-option {
+        gap: 8px;
         font-size: 13px;
         color: #333;
         cursor: pointer;
@@ -99,22 +80,30 @@
         user-select: none;
         transition: background-color 0.15s, border-color 0.15s, color 0.15s;
     }
-    .dest-option:hover {
+    .preset-option:hover {
         background: #e2e8ee;
     }
-    .dest-option.selected {
+    .preset-option.selected {
         background: #007bff;
         color: #fff;
         border-color: #0056b3;
     }
-    .dest-option input {
+    .preset-option input {
         display: none;
     }
-    .dest-label {
+    .preset-dest {
         font-weight: bold;
-        font-size: 14px;
-        color: #333;
-        margin-right: 2px;
+    }
+    .preset-fmt {
+        font-size: 11px;
+        text-transform: uppercase;
+        opacity: 0.75;
+        background: rgba(0, 0, 0, 0.08);
+        padding: 1px 6px;
+        border-radius: 3px;
+    }
+    .preset-option.selected .preset-fmt {
+        background: rgba(255, 255, 255, 0.25);
     }
 
     #copy-all-button {
@@ -232,46 +221,25 @@
         <input type="file" id="file-input" name="img" multiple />
       </div>
 
-      <div class="compression-group" title="使用高性能 WASM 库进行图片压缩。仅当转换后体积变小时才会生效。">
-        <label class="compress-option">
-          <input type="radio" name="compression-type" value="avif">
-          <span> AVIF</span>
+      <div class="preset-group" title="预设：目标后端 + 压缩格式。压缩使用高性能 WASM 库，仅当转换后体积变小时才会生效。">
+        <label class="preset-option selected" data-dest="i.imgur.com" data-fmt="jpg">
+          <input type="radio" name="preset" value="imgur-jpg" checked>
+          <span class="preset-dest">imgur</span>
+          <span class="preset-fmt">JPG</span>
         </label>
-        <label class="compress-option">
-          <input type="radio" name="compression-type" value="webp" checked>
-          <span> WEBP</span>
+        <label class="preset-option" data-dest="p.inari.site" data-fmt="webp">
+          <input type="radio" name="preset" value="inari-webp">
+          <span class="preset-dest">inari</span>
+          <span class="preset-fmt">WEBP</span>
         </label>
-        <label class="compress-option">
-          <input type="radio" name="compression-type" value="jpg">
-          <span> JPG</span>
-        </label>
-        <label class="compress-option">
-          <input type="radio" name="compression-type" value="none">
-          <span>不压缩</span>
+        <label class="preset-option" data-dest="p.sda1.dev" data-fmt="webp">
+          <input type="radio" name="preset" value="sda1-webp">
+          <span class="preset-dest">sda1</span>
+          <span class="preset-fmt">WEBP</span>
         </label>
       </div>
 
       <input class="keyboard-input" placeholder="召唤键盘" />
-
-      <div class="dest-group" title="选择上传目标后端。">
-        <span class="dest-label">目标:</span>
-        <label class="dest-option selected" data-dest="i.imgur.com">
-          <input type="radio" name="dest" value="i.imgur.com" checked>
-          <span>i.imgur.com</span>
-        </label>
-        <label class="dest-option" data-dest="p.inari.site">
-          <input type="radio" name="dest" value="p.inari.site">
-          <span>p.inari.site</span>
-        </label>
-        <label class="dest-option" data-dest="p.sda1.dev">
-          <input type="radio" name="dest" value="p.sda1.dev">
-          <span>p.sda1.dev</span>
-        </label>
-        <label class="dest-option" data-dest="r2">
-          <input type="radio" name="dest" value="r2">
-          <span>r2</span>
-        </label>
-      </div>
 
       <button id="copy-all-button">复制所有链接</button>
     </div>
@@ -299,10 +267,6 @@
   </template>
 
   <script type="module">
-    const AVIF_ENCODE_OPTIONS = {
-      cqLevel: 30,
-      speed: 7,
-    };
     const WEBP_ENCODE_OPTIONS = {
       quality: 75,
     };
@@ -315,42 +279,40 @@
     // Default dest from the URL (?dest=) when present; otherwise "" (auto).
     const URL_DEST = new URLSearchParams(location.search).get('dest') || (isLocalDev ? 'local' : '');
 
-    // uploadUrlFor returns the upload endpoint for the currently selected dest
-    // button group. The backend is sent as a ?dest= query parameter (the
-    // PUT /api/upload?dest=... form already supported by the server). The
-    // filename travels in the X-File-Name header (set at fetch time), so the
-    // URL stays clean.
+    // The merged preset button group drives both the upload backend (?dest=)
+    // and the compression format. Each .preset-option carries data-dest and
+    // data-fmt; the filename travels in the X-File-Name header (set at fetch
+    // time), so the URL stays clean.
+    const selectedPreset = () => {
+      const el = document.querySelector('input[name="preset"]:checked');
+      return el ? el.closest('.preset-option') : null;
+    };
     const selectedDest = () => {
-      const el = document.querySelector('input[name="dest"]:checked');
-      return el ? el.value : 'i.imgur.com';
+      const preset = selectedPreset();
+      return preset ? preset.dataset.dest : 'i.imgur.com';
+    };
+    const selectedFmt = () => {
+      const preset = selectedPreset();
+      return preset ? preset.dataset.fmt : 'webp';
     };
     const uploadUrlFor = () => {
       const dest = selectedDest();
       return `${ENDPOINT}/api/upload?dest=${encodeURIComponent(dest)}`;
     };
-    // If the URL carries ?dest=, preselect the matching button (if present);
-    // otherwise "i.imgur.com" stays checked by default.
+    // If the URL carries ?dest=, preselect the matching preset (if present);
+    // otherwise "imgur-jpg" stays checked by default.
     const syncDestButtons = () => {
       if (!URL_DEST) return;
-      const target = document.querySelector(`.dest-option[data-dest="${URL_DEST}"]`);
+      const target = document.querySelector(`.preset-option[data-dest="${URL_DEST}"]`);
       if (!target) return;
       const radio = target.querySelector('input[type="radio"]');
       if (radio) radio.checked = true;
-      document.querySelectorAll('.dest-option').forEach(o => o.classList.remove('selected'));
+      document.querySelectorAll('.preset-option').forEach(o => o.classList.remove('selected'));
       target.classList.add('selected');
     };
 
-    let avifEncodeFn = null;
     let webpEncodeFn = null;
     let jpegEncodeFn = null;
-
-    const compressToAvif = async (imageData) => {
-      if (!avifEncodeFn) {
-        const mod = await import('https://esm.sh/@jsquash/avif');
-        avifEncodeFn = mod.encode;
-      }
-      return await avifEncodeFn(imageData, AVIF_ENCODE_OPTIONS);
-    };
 
     const compressToWebp = async (imageData) => {
       if (!webpEncodeFn) {
@@ -431,20 +393,19 @@
         itemsContainer.prepend(itemElement);
 
         let fileToUpload = originalFile;
-        const selectedCompression = document.querySelector('input[name="compression-type"]:checked').value;
-        const shouldCompress = selectedCompression !== 'none' && originalFile.type && originalFile.type.startsWith('image/');
+        const fmt = selectedFmt();  // 'jpg' | 'webp'
+        const shouldCompress = originalFile.type && originalFile.type.startsWith('image/');
 
         if (shouldCompress && originalFile.type === 'image/gif') {
           statusInfoSpan.textContent = `跳过 GIF 图像（暂不支持压缩） (${formatBytes(originalFile.size)})`;
         } else if (shouldCompress && (
-          (selectedCompression === 'avif' && originalFile.type === 'image/avif') ||
-          (selectedCompression === 'webp' && originalFile.type === 'image/webp') ||
-          (selectedCompression === 'jpg' && originalFile.type === 'image/jpeg')
+          (fmt === 'webp' && originalFile.type === 'image/webp') ||
+          (fmt === 'jpg' && originalFile.type === 'image/jpeg')
         )) {
           statusInfoSpan.textContent = `无需处理 (${originalFile.type.split('/')[1].toUpperCase()}) (${formatBytes(originalFile.size)})`;
         } else if (shouldCompress) {
           try {
-            const formatName = selectedCompression === 'jpg' ? 'JPG' : selectedCompression.toUpperCase();
+            const formatName = fmt === 'jpg' ? 'JPG' : fmt.toUpperCase();
             urlLink.value = `压缩中 (${formatName} WASM)...`;
             delLink.value = '请稍候...';
 
@@ -460,11 +421,7 @@
             let compressedMimeType;
             let newExtension;
 
-            if (selectedCompression === 'avif') {
-              compressedBuffer = await compressToAvif(imageData);
-              compressedMimeType = 'image/avif';
-              newExtension = '.avif';
-            } else if (selectedCompression === 'jpg') {
+            if (fmt === 'jpg') {
               compressedBuffer = await compressToJpeg(imageData);
               compressedMimeType = 'image/jpeg';
               newExtension = '.jpg';
@@ -493,8 +450,6 @@
             statusInfoSpan.textContent = `压缩失败, 将上传原图`;
             statusInfoSpan.classList.add('warning');
           }
-        } else if (selectedCompression !== 'none') {
-          statusInfoSpan.textContent = `跳过非图片文件 (${formatBytes(originalFile.size)})`;
         }
 
         // --- 统一使用 Raw Data 上传 (不再使用 FormData / multipart) ---
@@ -609,15 +564,15 @@
       });
       copyAllButton.addEventListener('click', handleCopyAll);
 
-      // --- 目标后端按钮组：点击切换选中态并同步隐藏 radio ---
-      const destGroup = document.querySelector('.dest-group');
-      if (destGroup) {
-        destGroup.addEventListener('click', (event) => {
-          const option = event.target.closest('.dest-option');
+      // --- 合并预设按钮组：点击切换选中态并同步隐藏 radio ---
+      const presetGroup = document.querySelector('.preset-group');
+      if (presetGroup) {
+        presetGroup.addEventListener('click', (event) => {
+          const option = event.target.closest('.preset-option');
           if (!option) return;
           const radio = option.querySelector('input[type="radio"]');
           if (radio) radio.checked = true;
-          destGroup.querySelectorAll('.dest-option').forEach(o => o.classList.remove('selected'));
+          presetGroup.querySelectorAll('.preset-option').forEach(o => o.classList.remove('selected'));
           option.classList.add('selected');
         });
       }
