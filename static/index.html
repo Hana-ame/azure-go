@@ -66,86 +66,66 @@
       font-weight: bold;
     }
 
-    .preset-option {
+    /* 预设胶囊组：参考 dsh model 选择器 —— 每个 backend 一个胶囊，
+       胶囊内格式子选项用竖线分隔（如 EAC Minimax M3 1 Flash | Light | Balanced | Deep） */
+    .preset-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+    .preset-pill {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 2px;
+        background: #eef2f5;
+        border: 1.5px solid transparent;
+        border-radius: 10px;
+        padding: 3px 8px;
+        cursor: pointer;
+        user-select: none;
+        transition: border-color 0.15s, background-color 0.15s;
+    }
+    .preset-pill:hover {
+        background: #e2e8ee;
+    }
+    .preset-pill.selected {
+        border-color: #007bff;
+        background: #e3f0ff;
+    }
+    .pill-dest {
+        font-weight: 700;
         font-size: 13px;
         color: #333;
-        cursor: pointer;
-        background: #eef2f5;
-        padding: 6px 12px;
-        border-radius: 4px;
-        border: 1px solid transparent;
-        user-select: none;
-        transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+        padding: 3px 6px;
+        border-radius: 6px;
+        white-space: nowrap;
     }
-    .preset-option:hover {
-        background: #e2e8ee;
+    .preset-pill.selected .pill-dest {
+        color: #0056b3;
     }
-    .preset-option.selected {
-        background: #007bff;
-        color: #fff;
-        border-color: #0056b3;
+    .pill-sep {
+        width: 1px;
+        height: 15px;
+        background: #c8cfd6;
+        margin: 0 3px;
     }
-    .preset-option input {
-        display: none;
-    }
-    .preset-dest {
-        font-weight: bold;
-    }
-    .preset-fmt {
-        font-size: 11px;
-        text-transform: uppercase;
-        opacity: 0.75;
-        background: rgba(0, 0, 0, 0.08);
-        padding: 1px 6px;
-        border-radius: 3px;
-    }
-    .preset-option.selected .preset-fmt {
-        background: rgba(255, 255, 255, 0.25);
-    }
-
-    /* 小型「不压缩」开关：样式参考 dsh 插件里的 model 选择器（小号、细字、浅灰、无边框胶囊） */
-    .no-compress-toggle {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
+    .fmt-option {
         font-size: 12px;
-        color: #61666b;
+        color: #555;
+        padding: 3px 7px;
+        border-radius: 6px;
         cursor: pointer;
-        padding: 4px 8px;
-        border-radius: 8px;
-        user-select: none;
+        white-space: nowrap;
         transition: background-color 0.15s, color 0.15s;
     }
-    .no-compress-toggle:hover {
-        background: #e2e8ee;
+    .fmt-option:hover {
+        background: rgba(0, 0, 0, 0.05);
     }
-    .no-compress-toggle input {
-        display: none;
-    }
-    .no-compress-toggle .nc-dot {
-        width: 12px;
-        height: 12px;
-        flex: 0 0 12px;
-        border-radius: 50%;
-        border: 1.5px solid #9aa0a6;
-        box-sizing: border-box;
-        transition: background-color 0.15s, border-color 0.15s;
-    }
-    .no-compress-toggle.checked .nc-dot {
+    .fmt-option.selected {
         background: #007bff;
-        border-color: #0056b3;
-    }
-    .no-compress-toggle.checked {
-        color: #007bff;
-    }
-    .preset-sep {
-        width: 1px;
-        height: 20px;
-        background: #d8dde2;
-        margin: 0 2px;
+        color: #fff;
     }
 
     #copy-all-button {
@@ -264,29 +244,39 @@
       </div>
 
       <div class="preset-group" title="预设：目标后端 + 压缩格式。压缩使用高性能 WASM 库，仅当转换后体积变小时才会生效。">
-        <label class="preset-option selected" data-dest="i.imgur.com" data-fmt="jpg">
-          <input type="radio" name="preset" value="imgur-jpg" checked>
-          <span class="preset-dest">imgur</span>
-          <span class="preset-fmt">JPG</span>
-        </label>
-        <label class="preset-option" data-dest="p.inari.site" data-fmt="webp">
-          <input type="radio" name="preset" value="inari-webp">
-          <span class="preset-dest">inari</span>
-          <span class="preset-fmt">WEBP</span>
-        </label>
-        <label class="preset-option" data-dest="p.sda1.dev" data-fmt="webp">
-          <input type="radio" name="preset" value="sda1-webp">
-          <span class="preset-dest">sda1</span>
-          <span class="preset-fmt">WEBP</span>
-        </label>
+        <!-- imgur: JPG / 不压缩 -->
+        <div class="preset-pill selected" data-dest="i.imgur.com">
+          <span class="pill-dest">imgur</span>
+          <span class="pill-sep"></span>
+          <label class="fmt-option selected" data-fmt="jpg">JPG</label>
+          <label class="fmt-option" data-fmt="none">不压缩</label>
+        </div>
 
-        <span class="preset-sep"></span>
+        <!-- inari: WEBP / 不压缩 -->
+        <div class="preset-pill" data-dest="p.inari.site">
+          <span class="pill-dest">inari</span>
+          <span class="pill-sep"></span>
+          <label class="fmt-option selected" data-fmt="webp">WEBP</label>
+          <label class="fmt-option" data-fmt="none">不压缩</label>
+        </div>
 
-        <label class="no-compress-toggle" title="不压缩：保留所选目标后端，原图直接上传，不做 WASM 转换。">
-          <input type="checkbox" id="no-compress">
-          <span class="nc-dot"></span>
-          <span>不压缩</span>
-        </label>
+        <!-- sda1: WEBP / 不压缩 -->
+        <div class="preset-pill" data-dest="p.sda1.dev">
+          <span class="pill-dest">sda1</span>
+          <span class="pill-sep"></span>
+          <label class="fmt-option selected" data-fmt="webp">WEBP</label>
+          <label class="fmt-option" data-fmt="none">不压缩</label>
+        </div>
+
+        <!-- r2: AVIF / WEBP / JPG / 不压缩 -->
+        <div class="preset-pill" data-dest="r2">
+          <span class="pill-dest">r2</span>
+          <span class="pill-sep"></span>
+          <label class="fmt-option selected" data-fmt="avif">AVIF</label>
+          <label class="fmt-option" data-fmt="webp">WEBP</label>
+          <label class="fmt-option" data-fmt="jpg">JPG</label>
+          <label class="fmt-option" data-fmt="none">不压缩</label>
+        </div>
       </div>
 
       <input class="keyboard-input" placeholder="召唤键盘" />
@@ -317,6 +307,10 @@
   </template>
 
   <script type="module">
+    const AVIF_ENCODE_OPTIONS = {
+      cqLevel: 30,
+      speed: 7,
+    };
     const WEBP_ENCODE_OPTIONS = {
       quality: 75,
     };
@@ -329,40 +323,50 @@
     // Default dest from the URL (?dest=) when present; otherwise "" (auto).
     const URL_DEST = new URLSearchParams(location.search).get('dest') || (isLocalDev ? 'local' : '');
 
-    // The merged preset button group drives both the upload backend (?dest=)
-    // and the compression format. Each .preset-option carries data-dest and
-    // data-fmt; the filename travels in the X-File-Name header (set at fetch
-    // time), so the URL stays clean.
-    const selectedPreset = () => {
-      const el = document.querySelector('input[name="preset"]:checked');
-      return el ? el.closest('.preset-option') : null;
+    // 预设 = 目标后端胶囊（.preset-pill[data-dest]）+ 胶囊内格式子选项（.fmt-option[data-fmt]）。
+    // 点击任一 fmt-option 会选中所在胶囊的 dest，并把该胶囊内选中态移到点击项。
+    const selectedPill = () => {
+      const el = document.querySelector('.fmt-option.selected');
+      return el ? el.closest('.preset-pill') : null;
     };
     const selectedDest = () => {
-      const preset = selectedPreset();
-      return preset ? preset.dataset.dest : 'i.imgur.com';
+      const pill = selectedPill();
+      return pill ? pill.dataset.dest : 'i.imgur.com';
     };
     const selectedFmt = () => {
-      const preset = selectedPreset();
-      return preset ? preset.dataset.fmt : 'webp';
+      const el = document.querySelector('.fmt-option.selected');
+      return el ? el.dataset.fmt : 'webp';
     };
     const uploadUrlFor = () => {
       const dest = selectedDest();
       return `${ENDPOINT}/api/upload?dest=${encodeURIComponent(dest)}`;
     };
-    // If the URL carries ?dest=, preselect the matching preset (if present);
-    // otherwise "imgur-jpg" stays checked by default.
+    // If the URL carries ?dest=, preselect the matching pill (if present);
+    // otherwise the first pill's first fmt stays selected by default.
     const syncDestButtons = () => {
       if (!URL_DEST) return;
-      const target = document.querySelector(`.preset-option[data-dest="${URL_DEST}"]`);
+      const target = document.querySelector(`.preset-pill[data-dest="${URL_DEST}"]`);
       if (!target) return;
-      const radio = target.querySelector('input[type="radio"]');
-      if (radio) radio.checked = true;
-      document.querySelectorAll('.preset-option').forEach(o => o.classList.remove('selected'));
+      const firstFmt = target.querySelector('.fmt-option');
+      if (firstFmt) {
+        document.querySelectorAll('.fmt-option').forEach(o => o.classList.remove('selected'));
+        firstFmt.classList.add('selected');
+      }
+      document.querySelectorAll('.preset-pill').forEach(o => o.classList.remove('selected'));
       target.classList.add('selected');
     };
 
+    let avifEncodeFn = null;
     let webpEncodeFn = null;
     let jpegEncodeFn = null;
+
+    const compressToAvif = async (imageData) => {
+      if (!avifEncodeFn) {
+        const mod = await import('https://esm.sh/@jsquash/avif');
+        avifEncodeFn = mod.encode;
+      }
+      return await avifEncodeFn(imageData, AVIF_ENCODE_OPTIONS);
+    };
 
     const compressToWebp = async (imageData) => {
       if (!webpEncodeFn) {
@@ -443,13 +447,13 @@
         itemsContainer.prepend(itemElement);
 
         let fileToUpload = originalFile;
-        const fmt = selectedFmt();  // 'jpg' | 'webp'
-        const noCompress = document.getElementById('no-compress').checked;
-        const shouldCompress = !noCompress && originalFile.type && originalFile.type.startsWith('image/');
+        const fmt = selectedFmt();  // 'avif' | 'webp' | 'jpg' | 'none'
+        const shouldCompress = fmt !== 'none' && originalFile.type && originalFile.type.startsWith('image/');
 
         if (shouldCompress && originalFile.type === 'image/gif') {
           statusInfoSpan.textContent = `跳过 GIF 图像（暂不支持压缩） (${formatBytes(originalFile.size)})`;
         } else if (shouldCompress && (
+          (fmt === 'avif' && originalFile.type === 'image/avif') ||
           (fmt === 'webp' && originalFile.type === 'image/webp') ||
           (fmt === 'jpg' && originalFile.type === 'image/jpeg')
         )) {
@@ -472,7 +476,11 @@
             let compressedMimeType;
             let newExtension;
 
-            if (fmt === 'jpg') {
+            if (fmt === 'avif') {
+              compressedBuffer = await compressToAvif(imageData);
+              compressedMimeType = 'image/avif';
+              newExtension = '.avif';
+            } else if (fmt === 'jpg') {
               compressedBuffer = await compressToJpeg(imageData);
               compressedMimeType = 'image/jpeg';
               newExtension = '.jpg';
@@ -615,25 +623,20 @@
       });
       copyAllButton.addEventListener('click', handleCopyAll);
 
-      // --- 合并预设按钮组：点击切换选中态并同步隐藏 radio ---
+      // --- 预设胶囊组：点击格式子选项 -> 选中所在 backend 胶囊 + 该格式 ---
       const presetGroup = document.querySelector('.preset-group');
       if (presetGroup) {
         presetGroup.addEventListener('click', (event) => {
-          const option = event.target.closest('.preset-option');
-          if (!option) return;
-          const radio = option.querySelector('input[type="radio"]');
-          if (radio) radio.checked = true;
-          presetGroup.querySelectorAll('.preset-option').forEach(o => o.classList.remove('selected'));
-          option.classList.add('selected');
-        });
-      }
-
-      // --- 小「不压缩」开关：同步 checkbox 与视觉态 ---
-      const noCompressToggle = document.querySelector('.no-compress-toggle');
-      const noCompressCheckbox = document.getElementById('no-compress');
-      if (noCompressToggle && noCompressCheckbox) {
-        noCompressToggle.addEventListener('click', () => {
-          noCompressToggle.classList.toggle('checked', noCompressCheckbox.checked);
+          const fmtEl = event.target.closest('.fmt-option');
+          if (!fmtEl) return;
+          const pill = fmtEl.closest('.preset-pill');
+          if (!pill) return;
+          // 选中整个胶囊
+          presetGroup.querySelectorAll('.preset-pill').forEach(p => p.classList.remove('selected'));
+          pill.classList.add('selected');
+          // 全局清除格式选中，再选中该格式（同一时刻只有一个 fmt 选中）
+          presetGroup.querySelectorAll('.fmt-option').forEach(f => f.classList.remove('selected'));
+          fmtEl.classList.add('selected');
         });
       }
     };
