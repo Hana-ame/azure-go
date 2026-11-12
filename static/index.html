@@ -10,7 +10,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background-color: #f4f4f9;
       margin: 0;
-      padding: 24px;
+      padding: 12px;
       min-height: 100vh;
       box-sizing: border-box;
       transition: background-color 0.3s ease;
@@ -21,9 +21,9 @@
     }
 
     #upload-area {
-      margin-bottom: 24px;
+      margin-bottom: 16px;
       background: white;
-      padding: 20px;
+      padding: 10px 12px;
       border-radius: 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
@@ -31,59 +31,62 @@
     .upload-controls {
         display: flex;
         flex-wrap: wrap;
-        gap: 16px;
+        gap: 8px 10px;
         align-items: center;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
         min-width: 0;
     }
     .upload-controls > * {
         min-width: 0;
     }
     .upload-controls .preset-group {
-        flex: 1 1 220px;
+        flex: 0 0 auto;
+    }
+    #paste-button {
+        flex: 0 0 auto;
     }
     #copy-all-button {
         flex: 0 0 auto;
     }
 
-    .preset-group {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        flex-wrap: wrap;
-        min-width: 0;
-    }
-    .keyboard-input {
-        flex: 0 1 160px;
-        min-width: 0;
-        padding: 4px 8px;
-        font-size: 12px;
-        border: 1px solid #ccc;
+    #paste-button {
+        padding: 4px 12px;
+        font-size: 13px;
+        border: 1px solid #c9d1d9;
         border-radius: 6px;
-        box-sizing: border-box;
+        background-color: #fff;
+        color: #333;
+        cursor: pointer;
+        transition: background-color 0.2s, border-color 0.2s;
+    }
+    #paste-button:hover {
+        background-color: #eef2f5;
+        border-color: #b3bcc6;
     }
 
     .file-label {
       font-weight: bold;
+      font-size: 13px;
+      margin-right: 6px;
     }
 
     /* 预设胶囊组：参考 dsh model 选择器 —— 每个 backend 一个胶囊，
        胶囊内格式子选项用竖线分隔（如 EAC Minimax M3 1 Flash | Light | Balanced | Deep） */
     .preset-group {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         align-items: center;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         min-width: 0;
     }
     .preset-pill {
         display: inline-flex;
         align-items: center;
-        gap: 2px;
+        gap: 1px;
         background: #eef2f5;
         border: 1.5px solid transparent;
-        border-radius: 10px;
-        padding: 3px 8px;
+        border-radius: 8px;
+        padding: 2px 6px;
         cursor: pointer;
         user-select: none;
         transition: border-color 0.15s, background-color 0.15s;
@@ -97,10 +100,10 @@
     }
     .pill-dest {
         font-weight: 700;
-        font-size: 13px;
+        font-size: 12px;
         color: #333;
-        padding: 3px 6px;
-        border-radius: 6px;
+        padding: 2px 5px;
+        border-radius: 5px;
         white-space: nowrap;
     }
     .preset-pill.selected .pill-dest {
@@ -108,15 +111,15 @@
     }
     .pill-sep {
         width: 1px;
-        height: 15px;
+        height: 13px;
         background: #c8cfd6;
-        margin: 0 3px;
+        margin: 0 2px;
     }
     .fmt-option {
-        font-size: 12px;
+        font-size: 11px;
         color: #555;
-        padding: 3px 7px;
-        border-radius: 6px;
+        padding: 2px 6px;
+        border-radius: 5px;
         cursor: pointer;
         white-space: nowrap;
         transition: background-color 0.15s, color 0.15s;
@@ -130,10 +133,10 @@
     }
 
     #copy-all-button {
-        padding: 8px 16px;
-        font-size: 14px;
+        padding: 4px 12px;
+        font-size: 13px;
         border: none;
-        border-radius: 4px;
+        border-radius: 6px;
         background-color: #007bff;
         color: white;
         cursor: pointer;
@@ -149,9 +152,9 @@
     .tips-link {
       color: #007bff;
       text-decoration: none;
-      font-size: 14px;
+      font-size: 12px;
       display: inline-block;
-      margin-top: 8px;
+      margin-top: 6px;
     }
 
     .tips-link:hover {
@@ -280,7 +283,7 @@
         </div>
       </div>
 
-      <input class="keyboard-input" placeholder="召唤键盘" />
+      <button id="paste-button" title="从剪贴板粘贴图片">从剪贴板粘贴图片</button>
 
       <button id="copy-all-button">复制所有链接</button>
     </div>
@@ -418,6 +421,7 @@
       const itemsContainer = document.getElementById('items-container');
       const itemTemplate = document.getElementById('item-template');
       const copyAllButton = document.getElementById('copy-all-button');
+      const pasteButton = document.getElementById('paste-button');
 
       // Preselect the dest button from ?dest= (if any).
       syncDestButtons();
@@ -580,6 +584,32 @@
 
       // --- 统一绑定 选择上传 / Ctrl+V / Drag & Drop ---
       fileInput.addEventListener('change', (event) => processFiles(Array.from(event.target.files || [])), false);
+
+      // --- 从剪贴板粘贴图片按钮：读取剪贴板里的图片并上传 ---
+      if (pasteButton) {
+        pasteButton.addEventListener('click', async () => {
+          try {
+            const items = await navigator.clipboard.read();
+            const files = [];
+            for (const item of items) {
+              const type = item.types.find(t => t.startsWith('image/'));
+              if (type) {
+                const blob = await item.getType(type);
+                const ext = (type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+                files.push(new File([blob], `clipboard-${Date.now()}.${ext}`, { type }));
+              }
+            }
+            if (files.length === 0) {
+              alert('剪贴板里没有图片。');
+              return;
+            }
+            processFiles(files);
+          } catch (error) {
+            console.error('读取剪贴板失败:', error);
+            alert('读取剪贴板失败，请确认浏览器允许访问剪贴板。');
+          }
+        });
+      }
 
       window.addEventListener('paste', (event) => {
         const files = extractFiles(event.clipboardData);
